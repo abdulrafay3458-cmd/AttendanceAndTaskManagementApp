@@ -18,15 +18,9 @@ workflows:
           pod install --repo-update
           cd ..
 
-      - name: Build unsigned iOS app (no code signing)
+           - name: Build unsigned iOS app (no code signing)
         script: |
-          flutter build ipa --release --no-codesign \
-            --export-options-plist=/dev/null || true
-
-          # flutter build ipa --no-codesign only produces the .xcarchive,
-          # not a ready .ipa, because it can't export without a signing
-          # identity. So we package the .app from the archive into an
-          # .ipa manually below.
+          flutter build ipa --release --no-codesign
 
           cd build/ios/archive
           mkdir -p Payload
