@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "72962647242",
+    "project_id": "attendanceappfornotifications",
+    "storage_bucket": "attendanceappfornotifications.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:72962647242:android:1c6bc88e7c7f474bdf8033",
+        "android_client_info": {
+          "package_name": "com.example.attendance_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA4EsEg4HmsiQTbLwAbS1miYSiZYPMziL8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

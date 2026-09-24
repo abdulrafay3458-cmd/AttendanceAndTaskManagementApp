@@ -1,0 +1,72 @@
+name: attendance_app
+description: "Complete Attendance System with .NET API Integration"
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  path_provider: ^2.1.2
+  open_filex: ^4.4.0
+  flutter:
+    sdk: flutter
+  share_plus: ^7.2.0
+  firebase_core: ^3.6.0
+  firebase_messaging: ^15.1.0
+  geocoding: ^3.0.0
+  #open_file: ^3.5.1
+
+  flutter_local_notifications: ^17.0.0
+  
+  # UI
+  cupertino_icons: ^1.0.8
+  slide_to_act: ^2.0.2
+  
+  image_picker: ^1.0.7
+  # HTTP & WebSocket
+  http: ^1.1.0
+  signalr_netcore: ^1.3.4
+  
+  # Storage
+  shared_preferences: ^2.2.2
+  
+  # Camera
+  camera: ^0.10.5
+  google_mlkit_face_detection: ^0.11.0 
+  
+  # Location
+  geolocator: ^10.1.0
+  permission_handler: ^11.0.1
+
+  # Chart
+  fl_chart: ^0.66.0
+  
+  crypto: ^3.0.3
+
+  # Date Formatting
+  intl: ^0.18.1
+  easy_date_timeline: ^1.0.3
+  device_info_plus: ^12.3.0
+  package_info_plus: ^9.0.0
+  dio: ^5.9.2
+  # firebase_messaging: ^16.1.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.4
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: assets/img/icon.jpg
+  adaptive_icon_background: "#1976d2"
+  adaptive_icon_foreground: assets/img/icon.jpg
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/img/
