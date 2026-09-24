@@ -1,0 +1,47 @@
+workflows:
+  ios-sideload-unsigned:
+    name: iOS Sideload (Unsigned Build)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Get Flutter packages
+        script: |
+          flutter pub get
+
+      - name: Install CocoaPods dependencies
+        script: |
+          cd ios
+          pod install --repo-update
+          cd ..
+
+      - name: Build unsigned iOS app (no code signing)
+        script: |
+          flutter build ipa --release --no-codesign \
+            --export-options-plist=/dev/null || true
+
+          # flutter build ipa --no-codesign only produces the .xcarchive,
+          # not a ready .ipa, because it can't export without a signing
+          # identity. So we package the .app from the archive into an
+          # .ipa manually below.
+
+          cd build/ios/archive
+          mkdir -p Payload
+          cp -r Runner.xcarchive/Products/Applications/Runner.app Payload/
+          zip -r ../../../unsigned_app.ipa Payload
+          cd ../../../
+
+    artifacts:
+      - build/ios/archive/*.xcarchive
+      - unsigned_app.ipa
+
+    publishing:
+      email:
+        recipients:
+          - your-email@example.com
+        notify:
+          success: true
+          failure: true
