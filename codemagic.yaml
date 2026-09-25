@@ -1,4 +1,35 @@
 workflows:
+  ios-simulator-debug:
+    name: iOS Simulator Build (for Appetize debugging)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Get Flutter packages
+        script: |
+          flutter pub get
+
+      - name: Install CocoaPods dependencies
+        script: |
+          cd ios
+          pod install --repo-update
+          cd ..
+
+      - name: Build iOS simulator app
+        script: |
+          flutter build ios --simulator --release
+
+          cd build/ios/iphonesimulator
+          zip -r ../../../Runner.app.zip Runner.app
+          cd ../../../
+
+    artifacts:
+      - Runner.app.zip
+
+
   ios-sideload-unsigned:
     name: iOS Sideload (Unsigned Build)
     max_build_duration: 60
@@ -18,7 +49,7 @@ workflows:
           pod install --repo-update
           cd ..
 
-           - name: Build unsigned iOS app (no code signing)
+      - name: Build unsigned iOS app (no code signing)
         script: |
           flutter build ipa --release --no-codesign
 
