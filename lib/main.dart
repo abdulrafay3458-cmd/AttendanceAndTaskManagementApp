@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'dart:io' show Platform;
 import 'package:attendance_app/adminscreen.dart';
 import 'package:attendance_app/dashboard.dart';
 import 'package:attendance_app/firebase_options.dart';
@@ -98,8 +99,10 @@ Future<void> setupLocalNotifications() async {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+if (!Platform.isIOS) {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+}
 
   // Initialize API Service
   await ApiService.init();
@@ -108,7 +111,9 @@ void main() async {
   final cameras = await availableCameras();
 
   await setupLocalNotifications();
+ if (!Platform.isIOS) {
   await setupFCM();
+}
 
   runApp(AttendanceApp(cameras: cameras));
 }
@@ -359,10 +364,12 @@ class _HomeScreenState extends State<HomeScreen> {
         });
         setState(() => _isLoading = false);
         await _showRequestSentDialogBlur();
-        final token = await FirebaseMessaging.instance.getToken();
-        if (token != null) {
-          await ApiService().sendTokenToBackend(token);
-        }
+       if (!Platform.isIOS) {
+  final token = await FirebaseMessaging.instance.getToken();
+  if (token != null) {
+    await ApiService().sendTokenToBackend(token);
+  }
+}
       } else {
         _showError(
           'Failed to send device registration request. Please try again later.',
