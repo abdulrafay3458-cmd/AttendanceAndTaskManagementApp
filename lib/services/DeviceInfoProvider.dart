@@ -37,7 +37,21 @@ class DeviceInfoProvider {
       );
     }
 
-    throw UnsupportedError("Only Android and Web are supported");
+        if (defaultTargetPlatform == TargetPlatform.iOS) {
+      final iosInfo = await deviceInfoPlugin.iosInfo;
+
+      return DeviceInfoModel(
+        // identifierForVendor is the closest iOS equivalent of ANDROID_ID
+        androidId: iosInfo.identifierForVendor ?? "ios-unknown",
+        manufacturer: "Apple",
+        model: iosInfo.utsname.machine,
+        osVersion: iosInfo.systemVersion,
+        sdkInt: 0,
+        appVersion: packageInfo.version,
+      );
+    }
+
+    throw UnsupportedError("Only Android, iOS and Web are supported");
   }
 
   static Future<String> generateDeviceHash(DeviceInfoModel info) async {
