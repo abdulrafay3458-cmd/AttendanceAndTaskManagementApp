@@ -99,23 +99,98 @@ Future<void> setupLocalNotifications() async {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-if (!Platform.isIOS) {
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-}
+  // Show build errors on screen instead of a blank white screen (release builds)
+  ErrorWidget.builder = (FlutterErrorDetails details) {
+    return Material(
+      color: Colors.white,
+      child: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Text(
+            'UI error:\n${details.exceptionAsString()}',
+            style: const TextStyle(color: Colors.red, fontSize: 13),
+          ),
+        ),
+      ),
+    );
+  };
 
-  // Initialize API Service
-  await ApiService.init();
+  final List<String> startupErrors = [];
 
-  // Initialize cameras
-  final cameras = await availableCameras();
+  Future<T?> safe<T>(String step, Future<T> Function() fn) async {
+    try {
+      return await fn();
+    } catch (e) {
+      startupErrors.add('$step failed:\n$e');
+      return null;
+    }
+  }
 
-  await setupLocalNotifications();
- if (!Platform.isIOS) {
-  await setupFCM();
-}
+  if (!Platform.isIOS) {
+    // Firebase is skipped on iOS until iOS FirebaseOptions are configured.
+    await safe('Firebase init', () async {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+    });
+  }
 
-  runApp(AttendanceApp(cameras: cameras));
+  await safe('ApiService.init', () => ApiService.init());
+
+  final List<CameraDescription> cameras =
+      await safe('availableCameras', () => availableCameras()) ??
+          <CameraDescription>[];
+
+  await safe('Local notifications setup', () => setupLocalNotifications());
+
+  if (!Platform.isIOS) {
+    await safe('FCM setup', () => setupFCM());
+  }
+
+  if (startupErrors.isEmpty) {
+    runApp(AttendanceApp(cameras: cameras));
+  } else {
+    runApp(
+      MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: Scaffold(
+          backgroundColor: Colors.white,
+          body: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Startup problems (screenshot this)',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Text(
+                        startupErrors.join('\n\n'),
+                        style: const TextStyle(color: Colors.red),
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () =>
+                          runApp(AttendanceApp(cameras: cameras)),
+                      child: const Text('Continue anyway'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// ===============================
