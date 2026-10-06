@@ -329,7 +329,10 @@ class AttendanceApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         primarySwatch: Colors.blue,
-        scaffoldBackgroundColor: Colors.grey[100],
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.blue[200]!,
+        ),
+        useMaterial3: true,
       ),
       navigatorKey: navigatorKey,
       home: SplashScreen(),
@@ -614,7 +617,11 @@ class _HomeScreenState extends State<HomeScreen> {
       LeaveScreen(),
       // Employeereport(),
       ReportsScreen(),
-      if (role.contains('admin')) Adminscreen(),
+      if (role.contains('admin')) Adminscreen(
+        companyId: ApiService.currentEmployee!.companyGuid,
+        currentEmployeeId: ApiService.currentEmployee!.empGuid,
+        currentEmployeeCode: ApiService.currentEmployee!.employeeCode,
+      ),
       if (role.contains('manager')) ManagerPanel(),
       ProfileScreen(),
     ];

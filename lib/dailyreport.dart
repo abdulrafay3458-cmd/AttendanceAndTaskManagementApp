@@ -526,7 +526,7 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
                   'Total Hours',
                   '${totalHours.toStringAsFixed(1)}h',
                   Icons.timer_outlined,
-                  Colors.purple,
+                  Colors.blue,
                 ),
               _buildStatCard(
                 'Coverage',

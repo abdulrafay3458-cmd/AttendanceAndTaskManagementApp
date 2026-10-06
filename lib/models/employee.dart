@@ -1,4 +1,6 @@
 class Employee {
+  final String  empGuid;
+  final String  companyGuid;
   final String employeeId;
   final String name;
   final String email;
@@ -14,6 +16,8 @@ class Employee {
   bool AppliedDeviceRegistration;
 
   Employee({
+    required this.empGuid,
+    required this.companyGuid,
     required this.employeeId,
     required this.name,
     required this.email,
@@ -43,6 +47,8 @@ class Employee {
     }
 
     return Employee(
+      empGuid: json['empGuid']?.toString() ?? '',
+      companyGuid: json['companyGuid']?.toString() ?? '',
       employeeId: json['employeeId']?.toString() ?? '',
       employeeCode: json['employeeCode']?.toString() ?? '',
       name: json['name']?.toString() ?? '',
@@ -61,6 +67,8 @@ class Employee {
 
   Employee copyWith({String? faceImageBase64, bool? imageApproved}) {
     return Employee(
+      empGuid: this.empGuid,
+      companyGuid: this.companyGuid,
       employeeId: this.employeeId,
       employeeCode: this.employeeCode,
       name: this.name,

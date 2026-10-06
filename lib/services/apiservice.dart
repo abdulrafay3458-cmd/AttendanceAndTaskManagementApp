@@ -15,6 +15,7 @@ import 'package:attendance_app/models/dayWise.dart';
 import 'package:attendance_app/models/employee.dart';
 import 'package:attendance_app/models/employeeprofilemodel.dart';
 import 'package:attendance_app/models/extra_task_report.dart';
+import 'package:attendance_app/models/org_structure_model.dart';
 import 'package:attendance_app/models/overtimeresponse.dart';
 import 'package:attendance_app/models/pendingTasks.dart';
 import 'package:attendance_app/models/prevDateData.dart';
@@ -43,6 +44,10 @@ class ApiService {
   static String? get deviceHash => _deviceHash;
   static String? _employeeId;
   static String? get employeeId => _employeeId;
+  static String? _empGuid;
+  static String? get empGuid => _empGuid;
+  static String? _companyId;
+  static String? get companyId => _companyId;
   static Employee? _currentEmployee;
   static Employee? get currentEmployee => _currentEmployee;
   static bool _isFirstTimeLogin = false;
@@ -55,30 +60,42 @@ class ApiService {
     _authToken = prefs.getString('auth_token');
     _refreshToken = prefs.getString('refresh_token');
     _employeeId = prefs.getString('employee_id');
+    _empGuid = prefs.getString('emp_guid');
+    _companyId = prefs.getString('company_guid');
     // _currentEmployee =   await ApiService.getEmployeeById(employeeId);
     final deviceInfo = await DeviceInfoProvider.getDeviceInfo();
     _deviceHash = await DeviceInfoProvider.generateDeviceHash(deviceInfo);
   }
 
-  static Future<void> saveCredentials(String token, String? employeeId, String? refreshtoken) async {
+  static Future<void> saveCredentials(String token, String? employeeId, String? empGuid, String? companyId, String? refreshtoken) async {
     _authToken = token;
     _employeeId = employeeId;
     _refreshToken = refreshtoken;
+    _empGuid = empGuid;
+    _companyId = companyId;
+
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('auth_token', token);
     await prefs.setString('refresh_token', refreshtoken ?? '');
     await prefs.setString('employee_id', employeeId ?? '');
+    await prefs.setString('emp_guid', empGuid ?? '');
+    await prefs.setString('company_guid', companyId ?? '');
+    print("Company Guid: ${companyId}");
   }
 
   static Future<void> clearCredentials() async {
     _authToken = null;
     _employeeId = null;
     _currentEmployee = null;
-    _refreshToken = null; 
+    _refreshToken = null;
+    _empGuid = null;
+    _companyId = null;
+
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('auth_token');
     await prefs.remove('employee_id');
     await prefs.remove('refresh_token');
+    await prefs.remove('emp_guid');
   }
 
   static Map<String, String> getHeaders() {
@@ -866,10 +883,14 @@ static Future<Map<String, dynamic>> login(
 
     _currentEmployee = parsedEmployee;
     final code = _currentEmployee?.employeeId;
+    final guid = _currentEmployee?.empGuid;
+    final companyGuid = _currentEmployee?.companyGuid;
 
     await saveCredentials(
       map['token'].toString(),
       code,
+      guid,
+      companyGuid,
       map['refreshToken']?.toString(),
     );
 
@@ -897,8 +918,11 @@ static Future<Map<String, dynamic>> login(
         _currentEmployee = data['employee'] != null
             ? Employee.fromJson(data['employee'])
             : null;
+        _empGuid = _currentEmployee?.empGuid;
         final code = _currentEmployee?.employeeId;
-        await saveCredentials(data['token'], code, data['refreshToken']);
+        final guid = _currentEmployee?.empGuid;
+        final companyGuid = _currentEmployee?.companyGuid;
+        await saveCredentials(data['token'], code, guid, companyGuid, data['refreshToken']);
         return true;
       } else {
         return false;
@@ -2411,6 +2435,7 @@ static Future<Map<String, dynamic>> login(
         options: Options(receiveTimeout: const Duration(seconds: 30)),
       );
 
+        print('Entity Data: ${response.data}');
       if (response.statusCode == 200) {
         return response.data as List;
       } else {
@@ -3245,6 +3270,393 @@ static Future<Map<String, dynamic>> login(
     if (response.statusCode != 200) {
       throw Exception("Failed to process request");
     }
+  }
+  // Task Calls
+  static Future<Map<String, dynamic>> createProject({
+      required String clientId,
+      required String projectName,
+      String? description,
+      required DateTime startDate,
+      required DateTime endDate,
+      String? projectManagerId,
+      required String createdBy,
+    }) async {
+      try {
+        final payload = {
+          'clientId': clientId,
+          'projectName': projectName,
+          'description': description,
+          'startDate': startDate.toUtc().toIso8601String(),
+          'endDate': endDate.toUtc().toIso8601String(),
+          'projectManagerId': projectManagerId,
+          'createdBy': createdBy,
+        };
+
+        final response = await ApiClient().dio.post(
+          'project/createProject',
+          data: payload,
+        );
+
+        final data = response.data;
+        if (data is Map<String, dynamic>) {
+          return data;
+        }
+        return {'success': false, 'error': 'Unexpected server response'};
+      } on DioException catch (e) {
+        final body = e.response?.data;
+        final message = body is Map
+            ? (body['error'] ??
+                    body['inner'] ??
+                    body['message'] ??
+                    e.message ??
+                    'Request failed')
+                .toString()
+            : (e.message ?? 'Request failed');
+
+        return {'success': false, 'error': message};
+      } catch (e) {
+        return {'success': false, 'error': e.toString()};
+      }
+    }
+
+  static Future<List<dynamic>> getProjects({String? clientId}) async {
+    try {
+      final response = await ApiClient().dio.get(
+        'project',
+        queryParameters: clientId != null ? {'clientId': clientId} : null,
+      );
+      return response.data['projects'] ?? [];
+    } catch (e) {
+      print('Get projects error: $e');
+      return [];
+    }
+  }
+ 
+  static Future<Map<String, dynamic>> setProjectActive(String projectId, bool isActive) async {
+    try {
+      final response = await ApiClient().dio.patch(
+        'project/active',
+        data: {'projectId': projectId, 'isActive': isActive},
+      );
+      return response.data;
+    } catch (e) {
+      print('Set project active error: $e');
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+ 
+  static Future<Map<String, dynamic>> addProjectTeam({
+    required String projectId,
+    required String teamId,
+    required String assignedBy,
+  }) async {
+    try {
+      final response = await ApiClient().dio.post(
+        'project/team',
+        data: {'projectId': projectId, 'teamId': teamId, 'assignedBy': assignedBy},
+      );
+      return response.data;
+    } catch (e) {
+      print('Add project team error: $e');
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+ 
+  static Future<bool> removeProjectTeam(String projectTeamId) async {
+    try {
+      final response = await ApiClient().dio.delete('project/team/$projectTeamId');
+      return response.data['success'] == true;
+    } catch (e) {
+      print('Remove project team error: $e');
+      return false;
+    }
+  }
+ 
+  static Future<bool> setProjectTeamActive(String projectTeamId, bool isActive) async {
+    try {
+      final response = await ApiClient().dio.patch(
+        'project/team/active',
+        data: {'projectTeamId': projectTeamId, 'isActive': isActive},
+      );
+      return response.data['success'] == true;
+    } catch (e) {
+      print('Set project team active error: $e');
+      return false;
+    }
+  }
+ 
+  static Future<List<dynamic>> getProjectTeams(String projectId) async {
+    try {
+      final response = await ApiClient().dio.get('project/$projectId/teams');
+      return response.data['teams'] ?? [];
+    } catch (e) {
+      print('Get project teams error: $e');
+      return [];
+    }
+  }
+ 
+  // Read-only — Task Type Setup is managed elsewhere; this just lists them.
+  static Future<List<dynamic>> getTaskTypes() async {
+    try {
+      final response = await ApiClient().dio.get('tasktype');
+      return response.data['taskTypes'] ?? [];
+    } catch (e) {
+      print('Get task types error: $e');
+      return [];
+    }
+  }
+ 
+  // ---------- Team Head: Projects & Tasks (Screen 2) ----------
+ 
+  static Future<List<dynamic>> getMyProjects(String teamHeadEmployeeId) async {
+    try {
+      final response = await ApiClient().dio.get('teamheadtask/myprojects/$teamHeadEmployeeId');
+      return response.data['projects'] ?? [];
+    } catch (e) {
+      print('Get my projects error: $e');
+      return [];
+    }
+  }
+ 
+  static Future<List<dynamic>> getProjectTasks(String projectId, String teamId) async {
+    try {
+      final response = await ApiClient().dio.get('teamheadtask/project/$projectId/team/$teamId/tasks');
+      return response.data['tasks'] ?? [];
+    } catch (e) {
+      print('Get project tasks error: $e');
+      return [];
+    }
+  }
+ 
+  static Future<Map<String, dynamic>> getTaskDetail(String taskId) async {
+    try {
+      final response = await ApiClient().dio.get('teamheadtask/$taskId');
+      return response.data['task'] ?? {};
+    } catch (e) {
+      print('Get task detail error: $e');
+      return {};
+    }
+  }
+ 
+  static Future<Map<String, dynamic>> createTeamHeadTask({
+    required String projectId,
+    required String taskTypeId,
+    required String taskTitle,
+    String? description,
+    required String priority,
+    required DateTime startDate,
+    required DateTime dueDate,
+    required List<String> employeeIds,
+    String? remarks,
+    required String createdBy,
+    required String createdByTeamId,
+  }) async {
+    try {
+      final response = await ApiClient().dio.post(
+        'teamheadtask',
+        data: {
+          'projectId': projectId,
+          'taskTypeId': taskTypeId,
+          'taskTitle': taskTitle,
+          'description': description,
+          'priority': priority,
+          'startDate': startDate.toIso8601String(),
+          'dueDate': dueDate.toIso8601String(),
+          'employeeIds': employeeIds,
+          'remarks': remarks,
+          'createdBy': createdBy,
+          'createdByTeamId': createdByTeamId,
+        },
+      );
+      return response.data;
+    } catch (e) {
+      print('Create task error: $e');
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+ 
+  // ---------- Task Approval (Screen 3) ----------
+ 
+  static Future<List<dynamic>> getPendingApprovals(String approverId) async {
+    try {
+      final response = await ApiClient().dio.get('taskapproval/pending/$approverId');
+      return response.data['approvals'] ?? [];
+    } catch (e) {
+      print('Get pending approvals error: $e');
+      return [];
+    }
+  }
+ 
+  static Future<Map<String, dynamic>> getApprovalDetail(String taskApprovalId) async {
+    try {
+      final response = await ApiClient().dio.get('taskapproval/$taskApprovalId');
+      return response.data['approval'] ?? {};
+    } catch (e) {
+      print('Get approval detail error: $e');
+      return {};
+    }
+  }
+ 
+  static Future<Map<String, dynamic>> approveTask({
+    required String taskApprovalId,
+    required String approverId,
+    String? comments,
+  }) async {
+    try {
+      final response = await ApiClient().dio.post(
+        'taskapproval/approve',
+        data: {'taskApprovalId': taskApprovalId, 'approverId': approverId, 'comments': comments},
+      );
+      return response.data;
+    } catch (e) {
+      print('Approve task error: $e');
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+ 
+  static Future<Map<String, dynamic>> rejectTask({
+    required String taskApprovalId,
+    required String approverId,
+    required String rejectionReason,
+  }) async {
+    try {
+      final response = await ApiClient().dio.post(
+        'taskapproval/reject',
+        data: {
+          'taskApprovalId': taskApprovalId,
+          'approverId': approverId,
+          'rejectionReason': rejectionReason,
+        },
+      );
+      return response.data;
+    } catch (e) {
+      print('Reject task error: $e');
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+ 
+  static Future<List<dynamic>> getMyTaskRequests(String requestedByEmployeeId) async {
+    try {
+      final response = await ApiClient().dio.get('taskapproval/myrequests/$requestedByEmployeeId');
+      return response.data['requests'] ?? [];
+    } catch (e) {
+      print('Get my task requests error: $e');
+      return [];
+    }
+  }
+ 
+  // Finds the team(s) this employee heads, out of all teams in the company —
+  // used by Adminscreen to resolve a teamId before opening TeamHeadTaskScreen,
+  // since that screen needs a specific teamId and there's no "my team" endpoint.
+  static Future<List<dynamic>> getTeamsHeadedBy(String companyId, String employeeId) async {
+    final teams = await getTeams(companyId);
+    return teams.where((t) => t['teamHeadId'] == employeeId).toList();
+  }
+ 
+  // ---------- Reused from the Team/Reporting module (previous turn) ----------
+  // If you haven't added these yet, they belong here too — same pattern:
+ 
+  static Future<List<dynamic>> getTeams(String companyId) async {
+    try {
+      final response = await ApiClient().dio.get('orgstructure/team/company/$companyId');
+      return response.data['teams'] ?? [];
+    } catch (e) {
+      print('Get teams error: $e');
+      return [];
+    }
+  }
+ 
+  static Future<List<dynamic>> getTeamMembersForTeam(String teamId) async {
+    try {
+      final response = await ApiClient().dio.get('orgstructure/team/$teamId/members');
+      return response.data['members'] ?? [];
+    } catch (e) {
+      print('Get team members error: $e');
+      return [];
+    }
+  }
+
+  //Org Call
+  static Future<TeamModel> createOrgTeam({
+    required String companyId,
+    required String teamName,
+    required String teamHeadId,
+    String? createdByEmployeeCode,
+  }) async {
+    final response = await ApiClient().dio.post(
+      'orgstructure/team',
+      data: {
+        'companyId': companyId,
+        'teamName': teamName,
+        'teamHeadId': teamHeadId,
+        'createdByEmployeeCode': createdByEmployeeCode,
+      },
+    );
+    return TeamModel.fromJson(response.data['team']);
+  }
+
+  static Future<List<dynamic>> getTeamHeader() async{
+    final response = await ApiClient().dio.get('orgstructure/teamHead');
+    print("API HEAD DATA: ${response.data}");
+    return response.data;
+  }
+
+  static Future<List<TeamModel>> getOrgTeams(String companyId) async {
+    final response = await ApiClient().dio.get('orgstructure/team/company/$companyId');
+    final List<dynamic> data = response.data['teams'];
+    return data.map((e) => TeamModel.fromJson(e)).toList();
+  }
+
+  static Future<TeamMemberRecord> addOrgTeamMember({
+    required String teamId,
+    required String employeeId,
+  }) async {
+    final response = await ApiClient().dio.post(
+      'orgstructure/team/member',
+      data: {'teamId': teamId, 'employeeId': employeeId},
+    );
+    return TeamMemberRecord.fromJson(response.data['member']);
+  }
+
+  static Future<void> removeTeamMember(String teamMemberId) async {
+    await ApiClient().dio.patch(
+      'orgstructure/team/member/remove',
+      data: {'teamMemberId': teamMemberId},
+    );
+  }
+
+  static Future<List<TeamMemberRecord>> getOrgTeamMembers(String teamId) async {
+    final response = await ApiClient().dio.get('orgstructure/team/$teamId/members');
+    final List<dynamic> data = response.data['members'];
+    return data.map((e) => TeamMemberRecord.fromJson(e)).toList();
+  }
+
+  static Future<void> setReportingRelationship({
+    required String employeeId,
+    required String reportingToEmployeeId,
+  }) async {
+    await ApiClient().dio.post(
+      'orgstructure/reporting',
+      data: {
+        'employeeId': employeeId,
+        'reportingToEmployeeId': reportingToEmployeeId,
+      },
+    );
+  }
+
+  // Team Head view: only their own direct team.
+  static Future<List<SubordinateModel>> getDirectReports(String employeeId) async {
+    final response = await ApiClient().dio.get('orgstructure/reporting/$employeeId/direct-reports');
+    final List<dynamic> data = response.data['reports'];
+    return data.map((e) => SubordinateModel.fromJson(e)).toList();
+  }
+
+  // Reporting-head view: everyone under them, any depth (e.g. Raffay sees
+  // Usman's whole team, not just Usman).
+  static Future<List<SubordinateModel>> getAllSubordinates(String employeeId) async {
+    final response = await ApiClient().dio.get('orgstructure/reporting/$employeeId/all-subordinates');
+    final List<dynamic> data = response.data['subordinates'];
+    return data.map((e) => SubordinateModel.fromJson(e)).toList();
   }
 }
 

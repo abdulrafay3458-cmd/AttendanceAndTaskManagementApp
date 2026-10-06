@@ -1,46 +1,4 @@
 workflows:
-  ios-simulator-debug:
-    name: iOS Simulator Build (for Appetize debugging)
-    max_build_duration: 60
-    instance_type: mac_mini_m2
-    environment:
-      flutter: stable
-      xcode: latest
-      cocoapods: default
-    scripts:
-      - name: Disable Swift Package Manager (avoid CocoaPods conflict)
-        script: |
-          flutter config --no-enable-swift-package-manager
-
-      - name: Get Flutter packages
-        script: |
-          flutter pub get
-
-      - name: Set iOS deployment target to 15.5
-        script: |
-          # Flutter generates ios/Podfile with the platform line commented out,
-          # so set it explicitly (newer ML Kit needs iOS 15.5+).
-          if [ ! -f ios/Podfile ]; then
-            flutter build ios --config-only --no-codesign || true
-          fi
-          if [ -f ios/Podfile ]; then
-            sed -i '' -E "s/^# *platform :ios, '.*'/platform :ios, '15.5'/" ios/Podfile
-            grep -n "platform :ios" ios/Podfile || echo "platform line not found"
-          fi
-          sed -i '' -E "s/IPHONEOS_DEPLOYMENT_TARGET = [0-9.]+;/IPHONEOS_DEPLOYMENT_TARGET = 15.5;/g" ios/Runner.xcodeproj/project.pbxproj
-
-      - name: Build iOS simulator app
-        script: |
-          flutter build ios --simulator --debug
-
-          cd build/ios/iphonesimulator
-          zip -r ../../../Runner.app.zip Runner.app
-          cd ../../../
-
-    artifacts:
-      - Runner.app.zip
-
-
   ios-sideload-unsigned:
     name: iOS Sideload (Unsigned Build)
     max_build_duration: 60
@@ -50,30 +8,25 @@ workflows:
       xcode: latest
       cocoapods: default
     scripts:
-      - name: Disable Swift Package Manager (avoid CocoaPods conflict)
-        script: |
-          flutter config --no-enable-swift-package-manager
-
       - name: Get Flutter packages
         script: |
           flutter pub get
 
-      - name: Set iOS deployment target to 15.5
+      - name: Install CocoaPods dependencies
         script: |
-          # Flutter generates ios/Podfile with the platform line commented out,
-          # so set it explicitly (newer ML Kit needs iOS 15.5+).
-          if [ ! -f ios/Podfile ]; then
-            flutter build ios --config-only --no-codesign || true
-          fi
-          if [ -f ios/Podfile ]; then
-            sed -i '' -E "s/^# *platform :ios, '.*'/platform :ios, '15.5'/" ios/Podfile
-            grep -n "platform :ios" ios/Podfile || echo "platform line not found"
-          fi
-          sed -i '' -E "s/IPHONEOS_DEPLOYMENT_TARGET = [0-9.]+;/IPHONEOS_DEPLOYMENT_TARGET = 15.5;/g" ios/Runner.xcodeproj/project.pbxproj
+          cd ios
+          pod install --repo-update
+          cd ..
 
       - name: Build unsigned iOS app (no code signing)
         script: |
-          flutter build ipa --release --no-codesign
+          flutter build ipa --release --no-codesign \
+            --export-options-plist=/dev/null || true
+
+          # flutter build ipa --no-codesign only produces the .xcarchive,
+          # not a ready .ipa, because it can't export without a signing
+          # identity. So we package the .app from the archive into an
+          # .ipa manually below.
 
           cd build/ios/archive
           mkdir -p Payload

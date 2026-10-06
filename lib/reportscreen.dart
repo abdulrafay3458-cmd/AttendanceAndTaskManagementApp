@@ -8,6 +8,26 @@ import 'package:attendance_app/models/employee.dart';
 import 'package:attendance_app/services/apiservice.dart';
 import 'package:flutter/material.dart';
 
+const Color _kBg = Color(0xFFF5F6FA);
+const Color _kInk = Color(0xFF1F2430);
+const Color _kMuted = Color(0xFF7A8194);
+
+class _ReportItem {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _ReportItem({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+}
+
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
 
@@ -18,133 +38,261 @@ class ReportsScreen extends StatefulWidget {
 class _ReportsScreenState extends State<ReportsScreen> {
   Employee? get employee => ApiService.currentEmployee;
 
+  void _go(Widget page) {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+  }
+
   @override
   Widget build(BuildContext context) {
     final roles = employee?.role.map((r) => r.toLowerCase()).toList() ?? [];
     final isManager = roles.contains('manager');
 
+    // Cards per row: 2 on phones, 3 on small tablets, 4 on large screens.
+    final width = MediaQuery.of(context).size.width;
+    final crossAxisCount = width >= 900 ? 5 : (width >= 600 ? 3 : 3);
+
+    final myReports = <_ReportItem>[
+      _ReportItem(
+        title: 'Attendance',
+        subtitle: 'Your attendance report',
+        icon: Icons.document_scanner_rounded,
+        color: const Color(0xFF4F9A5B),
+        onTap: () => _go(Employeereport()),
+      ),
+    ];
+
+    final teamReports = <_ReportItem>[
+      _ReportItem(
+        title: 'Team Attendance',
+        subtitle: 'Daily team overview',
+        icon: Icons.groups_rounded,
+        color: const Color(0xFF2F86A6),
+        onTap: () => _go(DailyReportScreen()),
+      ),
+      _ReportItem(
+        title: 'Late Employees',
+        subtitle: 'Late arrivals',
+        icon: Icons.alarm_rounded,
+        color: const Color(0xFFD9733F),
+        onTap: () => _go(LateEmployeesScreen()),
+      ),
+      _ReportItem(
+        title: 'Absent Employees',
+        subtitle: 'Who is not in today',
+        icon: Icons.person_off_rounded,
+        color: const Color(0xFF3F6FB5),
+        onTap: () => _go(AbsentEmployeesScreen()),
+      ),
+      _ReportItem(
+        title: 'Check In/Out',
+        subtitle: 'Punch time records',
+        icon: Icons.lock_clock_rounded,
+        color: const Color(0xFF9A8A12),
+        onTap: () => _go(CheckinReportScreen()),
+      ),
+      _ReportItem(
+        title: 'Task Report',
+        subtitle: 'Task summary by employee',
+        icon: Icons.work_history_rounded,
+        color: const Color(0xFF7B5CC9),
+        onTap: () => _go(EmployeeTaskSummaryPage()),
+      ),
+    ];
+
+    final sections = <MapEntry<String, List<_ReportItem>>>[
+      MapEntry('My Reports', myReports),
+      if (isManager) MapEntry('Team Reports', teamReports),
+    ];
+
     return Scaffold(
+      backgroundColor: _kBg,
       appBar: AppBar(
-        title: Text('Report', style: TextStyle(fontWeight: FontWeight.w600)),
+        title: Text(
+          'Pending Leaves Approvals',
+          style: TextStyle(fontWeight: FontWeight.w600),
+        ),
         backgroundColor: Colors.white,
         foregroundColor: Colors.blue[700],
       ),
-      body: Padding(
-        padding: EdgeInsets.all(16),
-        child: GridView.count(
-          crossAxisCount: 2,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
-          children: [
-            _buildReportCard(
-              'Attendance Report',
-              Icons.document_scanner,
-              Color.fromARGB(255, 205, 230, 195),
-              Color.fromARGB(255, 85, 120, 75),
-              () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => Employeereport()),
+      body: CustomScrollView(
+        slivers: [
+          SliverToBoxAdapter(child: _HeaderBanner(isManager: isManager)),
+          for (final section in sections) ...[
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
+                child: Text(
+                  section.key,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: _kInk,
+                    letterSpacing: 0.2,
+                  ),
+                ),
               ),
             ),
-            if (isManager) ...[
-              _buildReportCard(
-                'Team Attendance',
-                Icons.group,
-                Color.fromARGB(255, 175, 227, 248),
-                Color.fromARGB(255, 83, 119, 133),
-                () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => DailyReportScreen()),
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              sliver: SliverGrid(
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: crossAxisCount,
+                  crossAxisSpacing: 14,
+                  mainAxisSpacing: 14,
+                  mainAxisExtent: 148,
+                ),
+                delegate: SliverChildBuilderDelegate(
+                  (context, i) => _buildReportCard(section.value[i]),
+                  childCount: section.value.length,
                 ),
               ),
-              _buildReportCard(
-                'Late Employees',
-                Icons.alarm,
-                Color.fromARGB(255, 248, 196, 175),
-                Color.fromARGB(255, 131, 98, 85),
-                () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => LateEmployeesScreen()),
-                ),
-              ),
-              _buildReportCard(
-                'Absent Employees',
-                Icons.person_off,
-                Color.fromARGB(255, 191, 211, 249),
-                Color.fromARGB(255, 84, 105, 142),
-                () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => AbsentEmployeesScreen(),
-                  ),
-                ),
-              ),
-              _buildReportCard(
-                'Check In/Out Report',
-                Icons.lock_clock_rounded,
-                Color.fromARGB(255, 249, 249, 191),
-                Color.fromARGB(255, 142, 131, 84),
-                () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => CheckinReportScreen(),
-                  ),
-                ),
-              ),
-              _buildReportCard(
-                'Task Report',
-                Icons.work_history_rounded,
-                Color.fromARGB(255, 225, 215, 240),
-                Color.fromARGB(255, 95, 80, 125),
-                () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => EmployeeTaskSummaryPage(),
-                  ),
-                ),
-              ),
-            ],
+            ),
           ],
-        ),
+          const SliverToBoxAdapter(child: SizedBox(height: 32)),
+        ],
       ),
     );
   }
 
-  Widget _buildReportCard(
-    String title,
-    IconData icon,
-    Color color,
-    Color frontColor,
-    VoidCallback onTap,
-  ) {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            color: color,
+  Widget _buildReportCard(_ReportItem item) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF1F2430).withOpacity(0.06),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
           ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 48, color: frontColor),
-              SizedBox(height: 12),
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: frontColor,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: item.onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        color: item.color.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Icon(item.icon, color: item.color, size: 26),
+                    ),
+                    Icon(
+                      Icons.arrow_outward_rounded,
+                      size: 18,
+                      color: _kMuted.withOpacity(0.7),
+                    ),
+                  ],
                 ),
-              ),
-            ],
+                const Spacer(),
+                Text(
+                  item.title,
+                  maxLines: 2,
+                  softWrap: true,
+                  overflow: TextOverflow.clip,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: _kInk,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  item.subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 9.5, color: _kMuted),
+                ),
+              ],
+            ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _HeaderBanner extends StatelessWidget {
+  final bool isManager;
+  const _HeaderBanner({required this.isManager});
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = const Color.fromARGB(255, 12, 86, 147);
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [primary, primary.withOpacity(0.72)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(
+            color: primary.withOpacity(0.30),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Insights & Reports',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  isManager
+                      ? 'Track attendance, lateness, absences and tasks across your team.'
+                      : 'Review your attendance records.',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.88),
+                    fontSize: 13.5,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Container(
+            width: 54,
+            height: 54,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.20),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Icon(
+              Icons.insights_rounded,
+              color: Colors.white,
+              size: 30,
+            ),
+          ),
+        ],
       ),
     );
   }
