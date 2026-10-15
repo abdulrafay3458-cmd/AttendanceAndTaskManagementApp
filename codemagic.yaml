@@ -1,47 +1,65 @@
 workflows:
-  ios-sideload-unsigned:
-    name: iOS Sideload (Unsigned Build)
-    max_build_duration: 60
-    instance_type: mac_mini_m2
+  ios-unsigned-build:
+    name: iOS Unsigned Build
+    max_build_duration: 120
     environment:
       flutter: stable
-      xcode: latest
+      xcode: 15.4
       cocoapods: default
-    scripts:
-      - name: Get Flutter packages
-        script: |
-          flutter pub get
 
-      - name: Install CocoaPods dependencies
+    scripts:
+      - name: Flutter version
+        script: flutter --version
+
+      - name: Get Flutter packages
+        script: flutter pub get
+
+      - name: Pod install
         script: |
           cd ios
+          rm -rf Pods
+          rm -f Podfile.lock
           pod install --repo-update
-          cd ..
 
-      - name: Build unsigned iOS app (no code signing)
+      - name: Clean Flutter build
+        script: flutter clean
+
+      - name: Get packages again after clean
+        script: flutter pub get
+
+      - name: Build iOS Release
         script: |
-          flutter build ipa --release --no-codesign \
-            --export-options-plist=/dev/null || true
+          flutter build ios --release --no-codesign
 
-          # flutter build ipa --no-codesign only produces the .xcarchive,
-          # not a ready .ipa, because it can't export without a signing
-          # identity. So we package the .app from the archive into an
-          # .ipa manually below.
+      - name: Create Archive Directory
+        script: mkdir -p build/ios/archive
 
-          cd build/ios/archive
-          mkdir -p Payload
-          cp -r Runner.xcarchive/Products/Applications/Runner.app Payload/
-          zip -r ../../../unsigned_app.ipa Payload
-          cd ../../../
+      - name: Build Xcode Archive
+        script: |
+          xcodebuild \
+            -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -sdk iphoneos \
+            -configuration Release \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            IPHONEOS_DEPLOYMENT_TARGET=13.0 \
+            -archivePath build/ios/archive/Runner.xcarchive \
+            archive
+
+      - name: Create IPA Directory
+        script: mkdir -p build/ios/ipa
+
+      - name: Create Unsigned IPA
+        script: |
+          mkdir -p build/ios/ipa/Payload
+          cp -r build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app \
+            build/ios/ipa/Payload/Runner.app
+          cd build/ios/ipa
+          zip -r ../unsigned_app.ipa Payload
 
     artifacts:
-      - build/ios/archive/*.xcarchive
-      - unsigned_app.ipa
-
-    publishing:
-      email:
-        recipients:
-          - your-email@example.com
-        notify:
-          success: true
-          failure: true
+      - build/ios/ipa/unsigned_app.ipa
+      - build/ios/archive/Runner.xcarchive
+      - flutter_drive.log
