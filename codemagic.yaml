@@ -1,18 +1,22 @@
 workflows:
-  ios-unsigned-build:
-    name: iOS Unsigned Build
+  ios-sideload-unsigned:
+    name: iOS Sideload (Unsigned Build)
     max_build_duration: 120
+    instance_type: mac_mini_m2
     environment:
       flutter: stable
-      xcode: 15.4
+      xcode: latest
       cocoapods: default
 
     scripts:
-      - name: Flutter version
+      - name: Flutter version check
         script: flutter --version
 
       - name: Get Flutter packages
         script: flutter pub get
+
+      - name: Clean build
+        script: flutter clean && flutter pub get
 
       - name: Pod install
         script: |
@@ -20,19 +24,11 @@ workflows:
           rm -rf Pods
           rm -f Podfile.lock
           pod install --repo-update
+          cd ..
 
-      - name: Clean Flutter build
-        script: flutter clean
-
-      - name: Get packages again after clean
-        script: flutter pub get
-
-      - name: Build iOS Release
+      - name: Build iOS release (no codesign)
         script: |
           flutter build ios --release --no-codesign
-
-      - name: Create Archive Directory
-        script: mkdir -p build/ios/archive
 
       - name: Build Xcode Archive
         script: |
@@ -45,21 +41,25 @@ workflows:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
             IPHONEOS_DEPLOYMENT_TARGET=13.0 \
-            -archivePath build/ios/archive/Runner.xcarchive \
-            archive
+            -archivePath "$CM_BUILD_DIR/Runner.xcarchive" \
+            archive | xcpretty
 
-      - name: Create IPA Directory
-        script: mkdir -p build/ios/ipa
-
-      - name: Create Unsigned IPA
+      - name: Package into IPA
         script: |
-          mkdir -p build/ios/ipa/Payload
-          cp -r build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app \
-            build/ios/ipa/Payload/Runner.app
-          cd build/ios/ipa
-          zip -r ../unsigned_app.ipa Payload
+          mkdir -p "$CM_BUILD_DIR/Payload"
+          cp -r "$CM_BUILD_DIR/Runner.xcarchive/Products/Applications/Runner.app" \
+            "$CM_BUILD_DIR/Payload/Runner.app"
+          cd "$CM_BUILD_DIR"
+          zip -r unsigned_app.ipa Payload
 
     artifacts:
-      - build/ios/ipa/unsigned_app.ipa
-      - build/ios/archive/Runner.xcarchive
-      - flutter_drive.log
+      - $CM_BUILD_DIR/Runner.xcarchive
+      - $CM_BUILD_DIR/unsigned_app.ipa
+
+    publishing:
+      email:
+        recipients:
+          - your-email@example.com   # ← change this
+        notify:
+          success: true
+          failure: true
