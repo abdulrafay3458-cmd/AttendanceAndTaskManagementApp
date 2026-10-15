@@ -1,5 +1,9 @@
 import 'package:attendance_app/assigntask.dart';
+import 'package:attendance_app/managerTeam.dart';
 import 'package:attendance_app/pendingApproval.dart';
+import 'package:attendance_app/services/apiservice.dart';
+import 'package:attendance_app/task_approval_screen.dart';
+import 'package:attendance_app/team_head_task_screen.dart';
 import 'package:attendance_app/teamscreen.dart';
 import 'package:attendance_app/teamtask.dart';
 import 'package:attendance_app/widgets/SizeConfig.dart';
@@ -36,8 +40,11 @@ class ManagerPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     // Cards per row: 2 on phones, 3 on small tablets, 4 on large screens.
     final width = MediaQuery.of(context).size.width;
-    final crossAxisCount = width >= 900 ? 5 : (width >= 600 ? 3 : 3);
-
+    final crossAxisCount = width >= 900 ? 5 : (width >= 600 ? 3 : 2);
+    final resolvedCompanyId = ApiService.companyId ?? '';
+    final resolvedEmployeeId = ApiService.empGuid ?? '';
+    final resolvedEmployeeCode = ApiService.employeeId ?? '';
+    
     final items = <_PanelItem>[
       _PanelItem(
         title: 'Pending Approvals',
@@ -47,25 +54,53 @@ class ManagerPanel extends StatelessWidget {
         onTap: () => _go(context, PendingApprovalScreen()),
       ),
       _PanelItem(
-        title: 'Assign Task',
-        subtitle: 'Create & delegate',
-        icon: Icons.assignment_add,
+        title: 'My Team Task',
+        subtitle: 'Projects & tasks for your team',
+        icon: Icons.assignment_ind_rounded,
         color: const Color(0xFFD9733F),
-        onTap: () => _go(context, AssignTaskScreen()),
+        onTap: () async {
+          final myTeams = await ApiService.getTeamsHeadedBy(
+            resolvedCompanyId,
+            resolvedEmployeeId,
+          );
+          if (!context.mounted) return;
+          if (myTeams.isEmpty) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('You are not assigned as head of any team.'),
+                  behavior: SnackBarBehavior.floating,
+                  margin: EdgeInsets.all(16),
+                ),
+              );
+            }
+            return;
+          }
+          if (context.mounted) {
+            _go(
+              context,
+              TeamHeadTaskScreen(
+                teamHeadEmployeeId: resolvedEmployeeId,
+                teamId: myTeams.first['teamId'],
+                allTeams: myTeams,
+              ),
+            );
+          }
+        },
       ),
       _PanelItem(
-        title: 'Team Tasks',
-        subtitle: 'Track progress',
-        icon: Icons.task_alt_rounded,
+        title: 'Task Approval',
+        subtitle: 'Approve or reject requests',
+        icon: Icons.fact_check_rounded,
         color: const Color(0xFF4F9A5B),
-        onTap: () => _go(context, TeamTasksScreen()),
+        onTap: () => _go(context, TaskApprovalScreen(approverEmployeeId: resolvedEmployeeId)),
       ),
       _PanelItem(
         title: 'My Team',
         subtitle: 'View your people',
         icon: Icons.people_alt_rounded,
         color: const Color(0xFF7B5CC9),
-        onTap: () => _go(context, MyTeamScreen()),
+        onTap: () => _go(context, ManagerTeam()),
       ),
     ];
 
@@ -74,15 +109,10 @@ class ManagerPanel extends StatelessWidget {
       appBar: AppBar(
         title: Text(
           'Manager Panel',
-          style: TextStyle(
-            fontWeight: FontWeight.w700,
-            fontSize: SizeConfig.f(20),
-            color: Colors.blue[700],
-          ),
+          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 17),
         ),
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        centerTitle: false,
+        backgroundColor: Colors.white,
+        foregroundColor: const Color.fromARGB(255, 12, 86, 147),
       ),
       body: CustomScrollView(
         slivers: [

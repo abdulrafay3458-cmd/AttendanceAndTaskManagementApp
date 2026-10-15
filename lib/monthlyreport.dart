@@ -35,54 +35,59 @@ class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
     _selectDate = DateTime(_selectedYear, _selectedMonth, 1);
   }
   Future<void> _downloadReport() async {
-  setState(() => _isDownloading = true);
+    final managerId = ApiService.empGuid;
 
-  try {
-    final bytes = await ApiService.downloadManagerReportBytes(
-      _selectedRange,
-      _selectDate,
-      managerId,
-    );
-
-    if (bytes == null || bytes.isEmpty) {
-      throw Exception('Empty file received');
+    if (managerId == null || managerId.isEmpty) {
+      return;
     }
+    setState(() => _isDownloading = true);
 
-    final directory = await getExternalStorageDirectory();
-    final downloadDir = Directory('${directory!.path}/Download');
+    try {
+      final bytes = await ApiService.downloadManagerReportBytes(
+        _selectedRange,
+        _selectDate,
+        managerId,
+      );
 
-    if (!await downloadDir.exists()) {
-      await downloadDir.create(recursive: true);
-    }
+      if (bytes == null || bytes.isEmpty) {
+        throw Exception('Empty file received');
+      }
 
-    final fileName =
-        'Team_Attendance_Report_${managerId}_${DateTime.now().millisecondsSinceEpoch}.xlsx';
+      final directory = await getExternalStorageDirectory();
+      final downloadDir = Directory('${directory!.path}/Download');
 
-    final file = File('${downloadDir.path}/$fileName');
-    await file.writeAsBytes(bytes, flush: true);
+      if (!await downloadDir.exists()) {
+        await downloadDir.create(recursive: true);
+      }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Report downloaded successfully'),
-        backgroundColor: Colors.green,
-        action: SnackBarAction(
-          label: 'VIEW',
-          textColor: Colors.white,
-          onPressed: () {
-            OpenFilex.open(file.path);
-          },
+      final fileName =
+          'Team_Attendance_Report_${managerId}_${DateTime.now().millisecondsSinceEpoch}.xlsx';
+
+      final file = File('${downloadDir.path}/$fileName');
+      await file.writeAsBytes(bytes, flush: true);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Report downloaded successfully'),
+          backgroundColor: Colors.green,
+          action: SnackBarAction(
+            label: 'VIEW',
+            textColor: Colors.white,
+            onPressed: () {
+              OpenFilex.open(file.path);
+            },
+          ),
         ),
-      ),
-    );
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Download failed: $e'),
-        backgroundColor: Colors.red,
-      ),
-    );
-  } finally {
-    setState(() => _isDownloading = false);
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Download failed: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() => _isDownloading = false);
   }
 }
   Future<void> _loadReport() async {

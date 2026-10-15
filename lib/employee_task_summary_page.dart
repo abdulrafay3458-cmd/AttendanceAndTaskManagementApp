@@ -135,9 +135,9 @@ class _EmployeeTaskSummaryPageState extends State<EmployeeTaskSummaryPage>
         },
         selectedColor: _getFilterColor(),
         showCheckmark: false,
-        backgroundColor: Colors.blue[700],
+        backgroundColor: const Color.fromARGB(255, 12, 86, 147),
         elevation: 0,
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         shape: const StadiumBorder(
           side: BorderSide(color: Colors.transparent),
         ),
@@ -558,10 +558,8 @@ class _EmployeeTaskSummaryPageState extends State<EmployeeTaskSummaryPage>
 
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
-      backgroundColor: Colors.white,
-      foregroundColor: Colors.blue[700],
-      elevation: 0,
-      centerTitle: false,
+        backgroundColor: Colors.white,
+        foregroundColor: const Color.fromARGB(255, 12, 86, 147),
       leading: IconButton(
         icon: const Icon(Icons.arrow_back),
         onPressed: () => Navigator.of(context).pop(),
@@ -574,8 +572,7 @@ class _EmployeeTaskSummaryPageState extends State<EmployeeTaskSummaryPage>
             "Task Report",
             style: TextStyle(
               fontWeight: FontWeight.w600,
-              fontSize: SizeConfig.f(18),
-              color: Colors.blue[700],
+              fontSize: 17,
             ),
           ),
           const SizedBox(height: 2),
@@ -654,7 +651,7 @@ class _EmployeeTaskSummaryPageState extends State<EmployeeTaskSummaryPage>
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.calendar_today, size: 18, color: Colors.blue[700]),
+                        Icon(Icons.calendar_today, size: 18, color: const Color.fromARGB(255, 12, 86, 147)),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -712,7 +709,7 @@ class _EmployeeTaskSummaryPageState extends State<EmployeeTaskSummaryPage>
             ),
             child: Row(
               children: [
-                Icon(Icons.today, size: 18, color: Colors.blue[700]),
+                Icon(Icons.today, size: 18, color: const Color.fromARGB(255, 12, 86, 147),),
                 const SizedBox(width: 8),
                 Text(_getTodayDisplayText()),
               ],
@@ -728,7 +725,7 @@ class _EmployeeTaskSummaryPageState extends State<EmployeeTaskSummaryPage>
   return FilterChip(
     label: Row(
       children: [
-        Icon(icon, size: 16, color: isSelected ? Colors.white : Colors.blue[700]),
+        Icon(icon, size: 16, color: isSelected ? Colors.white : const Color.fromARGB(255, 12, 86, 147),),
         const SizedBox(width: 4, height: 28),
         Text(label),
       ],
@@ -748,7 +745,7 @@ class _EmployeeTaskSummaryPageState extends State<EmployeeTaskSummaryPage>
         }
       }
     },
-    selectedColor: Colors.blue[700],
+    selectedColor: const Color.fromARGB(255, 12, 86, 147),
     checkmarkColor: Colors.white,
     backgroundColor: Colors.white,
     labelStyle: TextStyle(

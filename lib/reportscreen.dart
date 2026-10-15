@@ -108,11 +108,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
       backgroundColor: _kBg,
       appBar: AppBar(
         title: Text(
-          'Pending Leaves Approvals',
-          style: TextStyle(fontWeight: FontWeight.w600),
+          'Reports',
+          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 17),
         ),
         backgroundColor: Colors.white,
-        foregroundColor: Colors.blue[700],
+        foregroundColor: const Color.fromARGB(255, 12, 86, 147),
       ),
       body: CustomScrollView(
         slivers: [

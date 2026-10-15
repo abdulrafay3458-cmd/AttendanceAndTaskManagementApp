@@ -26,6 +26,7 @@ class _DeviceSetup extends State<DeviceSetup> {
   final _deviceLastAsync = TextEditingController();
   final _deviceMachineNumber = TextEditingController();
   final _deviceCompanyCode = TextEditingController();
+   final _deviceCompanyId = TextEditingController();
   bool isDeviceActive = true;
   bool isDeviceCanReadLogs = true;
 
@@ -54,6 +55,7 @@ class _DeviceSetup extends State<DeviceSetup> {
     _deviceStatus.text = data['deviceStatus'] ?? '';
     _devicePort.text = data['devicePort'].toString();
     _deviceCompanyCode.text = data['deviceCompanyCode'] ?? '';
+    _deviceCompanyId.text = data['deviceCompanyId'] ?? '';
     isDeviceActive = data['deviceIsActive'] ?? false;
     isDeviceCanReadLogs = data['deviceCanReadLogs'] ?? false;
     _deviceMachineNumber.text = data['deviceMachineNumber'].toString();
@@ -103,21 +105,27 @@ class _DeviceSetup extends State<DeviceSetup> {
   Future<void> _fetchCompanies() async {
     try {
       final data = await ApiService.getCompanies(); // implement API call
+
+      print('Companies: ${data}');
       setState(() {
         _companies = data
             .map<Company>((json) => Company.fromJson(json))
             .toList();
-        _loadingCompanies = false;
 
+            print('Companies: ${_companies}');
+
+        _loadingCompanies = false;
+          
         // Preselect existing company if editing
         if (widget.isEditing && widget.DeviceData != null) {
           final code =
-              widget.DeviceData!['companyCode'] ??
-              widget.DeviceData!['CompanyCode'];
+              widget.DeviceData!['DeviceCompanyId'] ??
+              widget.DeviceData!['deviceCompanyId'];
           _selectedCompany = _companies.firstWhere(
-            (c) => c.code == code,
+            (c) => c.Id.toString() == code.toString(),
             orElse: () => _companies.first,
           );
+          print('companyIdSaad:  $code');
         }
       });
     } catch (e) {
@@ -130,7 +138,8 @@ class _DeviceSetup extends State<DeviceSetup> {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _formSubmitted = true);
-
+print('DeviceCompanyId: ${_selectedCompany?.Id}');
+print('DeviceCompanyId: ${_selectedCompany?.code}');
     try {
       final data = await ApiService.addDevice(
         deviceName: _deviceName.text.trim(),
@@ -141,6 +150,7 @@ class _DeviceSetup extends State<DeviceSetup> {
         isDeviceActive: isDeviceActive,
         CanReadLogs: isDeviceCanReadLogs,
         deviceCompanyCode: _selectedCompany?.code ?? '',
+        deviceCompanyId: _selectedCompany?.Id ?? '',
       );
 
       if (data['success'] == true && mounted) {
@@ -184,7 +194,8 @@ class _DeviceSetup extends State<DeviceSetup> {
         deviceMachineNumber: _deviceMachineNumber.text.trim(),
         isDeviceActive: isDeviceActive,
         CanReadLogs: !isDeviceActive ? false : isDeviceCanReadLogs,
-        deviceCompanyCode: _deviceCompanyCode.text.trim(),
+        deviceCompanyCode: _selectedCompany!.code,
+        deviceCompanyId: _selectedCompany!.Id,
       );
 
       if (data['success'] == true && mounted) {

@@ -99,6 +99,7 @@ class _EditTaskScreenState extends State<EditTaskScreen> {
           (m) => m.employeeId == assignedToId,
           orElse: () => TeamMember(
             employeeId: '',
+            employeeCode: '',
             machineId: '',
             name: '',
             companyCode: '',
@@ -106,6 +107,7 @@ class _EditTaskScreenState extends State<EditTaskScreen> {
             phone: '',
             department: '',
             designation: '',
+            leadId: '',
             designationCode: 0,
             isActive: false,
             isAppUser: false,

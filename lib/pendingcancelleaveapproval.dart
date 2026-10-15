@@ -26,7 +26,7 @@ class _PendingCancelLeaveApprovalsScreenState extends State<PendingCancelLeaveAp
   Future<void> _loadPendingApprovals() async {
   setState(() => _isLoading = true);
 
-  final managerId = ApiService.currentEmployee?.employeeId;
+  final managerId = ApiService.empGuid;
   print('Manager ID for fetching: $managerId');
   
   if (managerId != null && managerId.isNotEmpty) {
@@ -148,11 +148,11 @@ class _PendingCancelLeaveApprovalsScreenState extends State<PendingCancelLeaveAp
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          'Cancel Leaves Requests',
-          style: TextStyle(fontWeight: FontWeight.w600),
+          'Cancel Leaves Approvals',
+          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 17),
         ),
         backgroundColor: Colors.white,
-        foregroundColor: Colors.blue[700],
+        foregroundColor: const Color.fromARGB(255, 12, 86, 147),
         actions: [
           IconButton(
             icon: Icon(Icons.refresh),

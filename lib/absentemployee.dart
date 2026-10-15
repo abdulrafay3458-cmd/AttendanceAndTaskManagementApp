@@ -36,7 +36,7 @@ class _AbsentEmployeesScreenState extends State<AbsentEmployeesScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final managerId = ApiService.employeeId;
+      final managerId = ApiService.empGuid;
       String url = '';
       
       if (_selectedFilter == 'Today') {
@@ -111,130 +111,138 @@ class _AbsentEmployeesScreenState extends State<AbsentEmployeesScreen> {
     }
   }
 
+  // Professional UI
+  static const Color _primary = Color.fromARGB(255, 12, 86, 147);
+  static const Color _pageBg = Color(0xFFF5F7FB);
+  static const Color _textPrimary = Color(0xFF172033);
+  static const Color _textSecondary = Color(0xFF687386);
+  static const Color _border = Color(0xFFE4E9F0);
+
+  LinearGradient get _primaryGradient => const LinearGradient(
+        colors: [_primary, Color(0xFF0C568F)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      );
+
   @override
   Widget build(BuildContext context) {
+    final hasRange = _startDate != null && _endDate != null;
+
     return Scaffold(
+      backgroundColor: _pageBg,
       appBar: AppBar(
-        title: Text(
-          'Absent Employees',
-          style: TextStyle(fontWeight: FontWeight.w600),
-        ),
+        elevation: 0,
+        scrolledUnderElevation: 0,
         backgroundColor: Colors.white,
-        foregroundColor: Colors.blue[700],
+        foregroundColor: const Color.fromARGB(255, 12, 86, 147),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
+        titleSpacing: 0,
+        title: Row(
+          children: [
+            const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Absent Employees',
+                    style: TextStyle(
+                        color: const Color.fromARGB(255, 12, 86, 147),
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700)),
+              ],
+            ),
+          ],
+        ),
         actions: [
           IconButton(
-            icon: Icon(Icons.refresh),
-            onPressed: _loadAbsentEmployees,
+            tooltip: 'Refresh',
+            onPressed: _isLoading ? null : _loadAbsentEmployees,
+            icon: _isLoading
+                ? const SizedBox(
+                    width: 19,
+                    height: 19,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.refresh_rounded),
           ),
+          const SizedBox(width: 4),
         ],
       ),
       body: Column(
         children: [
-          // Filter Section
           Container(
-            padding: EdgeInsets.all(16),
-            color: Colors.grey[50],
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildFilterChip('Today', Icons.today),
-                    ),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: _buildFilterChip('Date Range', Icons.date_range),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 12),
-                if (_selectedFilter == 'Date Range')
-                  InkWell(
-                    onTap: _selectDateRange,
-                    child: Container(
-                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(8),
-                        color: Colors.white,
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.calendar_today, size: 18, color: Colors.blue[700]),
-                          SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              _getFilterDisplayText(),
-                              style: TextStyle(
-                                color: (_startDate == null || _endDate == null) 
-                                    ? Colors.grey 
-                                    : Colors.black,
-                              ),
-                            ),
-                          ),
-                          Icon(Icons.arrow_drop_down, color: Colors.grey),
-                        ],
-                      ),
-                    ),
-                  )
-                else
+            color: Colors.white,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Text('Attendance filter',
+                          style: TextStyle(
+                              color: _textPrimary,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700)),
+                      const Spacer(),
+                      if (_selectedFilter == 'Date Range' && hasRange)
+                        Text(
+                          '${_startDate!.difference(_endDate!).inDays.abs() + 1} days',
+                          style: const TextStyle(
+                              color: _primary,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
                   Container(
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey.shade300),
-                      borderRadius: BorderRadius.circular(8),
-                      color: Colors.white,
+                      color: _pageBg,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: _border),
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.today, size: 18, color: Colors.blue[700]),
-                        SizedBox(width: 8),
-                        Text(_getFilterDisplayText()),
+                        Expanded(
+                            child: _buildFilterOption(
+                                'Today', Icons.today_rounded)),
+                        Expanded(
+                            child: _buildFilterOption(
+                                'Date Range', Icons.date_range_rounded)),
                       ],
                     ),
                   ),
-              ],
+                  const SizedBox(height: 10),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 220),
+                    child: _selectedFilter == 'Date Range'
+                        ? InkWell(
+                            key: const ValueKey('range'),
+                            borderRadius: BorderRadius.circular(13),
+                            onTap: _selectDateRange,
+                            child: _buildDateSelector(),
+                          )
+                        : _buildTodaySelector(),
+                  ),
+                ],
+              ),
             ),
           ),
-          
-          // Content
           Expanded(
             child: _isLoading
-                ? Center(child: CircularProgressIndicator())
+                ? const Center(
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2.5, color: _primary))
                 : _absentEmployees.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              _selectedFilter == 'Today' 
-                                  ? Icons.check_circle 
-                                  : Icons.calendar_view_day,
-                              size: 64, 
-                              color: Colors.green,
-                            ),
-                            SizedBox(height: 16),
-                            Text(
-                              _selectedFilter == 'Today'
-                                  ? 'Everyone present today!'
-                                  : 'No absent records found',
-                              style: TextStyle(fontSize: 18, color: Colors.grey[600]),
-                            ),
-                            SizedBox(height: 8),
-                            Text(
-                              _selectedFilter == 'Today'
-                                  ? 'All employees checked in'
-                                  : 'No absences in the selected date range',
-                              style: TextStyle(color: Colors.grey[500]),
-                            ),
-                          ],
-                        ),
-                      )
+                    ? _buildEmptyState()
                     : RefreshIndicator(
+                        color: _primary,
                         onRefresh: _loadAbsentEmployees,
                         child: ListView.builder(
-                          padding: EdgeInsets.all(16),
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+                          physics: const AlwaysScrollableScrollPhysics(),
                           itemCount: _absentEmployees.length,
                           itemBuilder: (context, index) {
                             final emp = _absentEmployees[index];
@@ -248,253 +256,377 @@ class _AbsentEmployeesScreenState extends State<AbsentEmployeesScreen> {
     );
   }
 
-    Widget _buildFilterChip(String label, IconData icon) {
-    final isSelected = _selectedFilter == label;
-    return FilterChip(
-      label: Row(
-        // mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: isSelected ? Colors.white : Colors.blue[700]),
-          SizedBox(width: 4, height: 28,),
-          Text(label),
-        ],
+  Widget _buildFilterOption(String label, IconData icon) {
+    final selected = _selectedFilter == label;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      height: 44,
+      decoration: BoxDecoration(
+        gradient: selected ? _primaryGradient : null,
+        color: selected ? null : Colors.transparent,
+        borderRadius: BorderRadius.circular(10),
+        boxShadow: selected
+            ? [
+                BoxShadow(
+                  color: _primary.withOpacity(.18),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                )
+              ]
+            : null,
       ),
-      selected: isSelected,
-      onSelected: (selected) {
-        if (selected) {
-          setState(() {
-            _selectedFilter = label;
-          });
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: () {
+          if (_selectedFilter == label) return;
+          setState(() => _selectedFilter = label);
           if (label == 'Today') {
             _loadAbsentEmployees();
-          } else if (label == 'Date Range' && _startDate != null && _endDate != null) {
-            _loadAbsentEmployees();
+          } else if (label == 'Date Range') {
+            // Open the date picker immediately when Date Range is selected.
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted && _selectedFilter == 'Date Range') {
+                _selectDateRange();
+              }
+            });
           }
-        }
-      },
-      selectedColor: Colors.blue[700],
-      checkmarkColor: Colors.white,
-      backgroundColor: Colors.white,
-      labelStyle: TextStyle(
-        color: isSelected ? Colors.white : Colors.black87,
-        fontSize: 13,
+        },
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon,
+                size: 17, color: selected ? Colors.white : _primary),
+            const SizedBox(width: 7),
+            Text(label,
+                style: TextStyle(
+                    color: selected ? Colors.white : _textSecondary,
+                    fontSize: 13,
+                    fontWeight:
+                        selected ? FontWeight.w700 : FontWeight.w600)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDateSelector() {
+    final active = _startDate != null && _endDate != null;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+      decoration: BoxDecoration(
+        color: _pageBg,
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(color: _border),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: Colors.blue.withOpacity(.10),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.calendar_month_rounded,
+                color: _primary, size: 19),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Selected date range',
+                    style: TextStyle(
+                        color: _textSecondary,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w600)),
+                const SizedBox(height: 2),
+                Text(
+                  active ? _getFilterDisplayText() : 'Choose start and end dates',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      color: active ? _textPrimary : _textSecondary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700),
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.chevron_right_rounded, color: _textSecondary),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTodaySelector() {
+    return Container(
+      key: const ValueKey('today'),
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F8F4),
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(color: const Color(0xFFD8EBDD)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: Colors.green.withOpacity(.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.event_available_rounded,
+                color: Colors.green, size: 19),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              DateFormat('EEEE, MMM dd, yyyy').format(DateTime.now()),
+              style: const TextStyle(
+                  color: _textPrimary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700),
+            ),
+          ),
+          const Icon(Icons.check_circle_rounded,
+              color: Colors.green, size: 20),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    final today = _selectedFilter == 'Today';
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(28),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 30),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: _border),
+            boxShadow: [
+              BoxShadow(
+                  color: Colors.black.withOpacity(.035),
+                  blurRadius: 22,
+                  offset: const Offset(0, 8))
+            ],
+          ),
+          child: Column(
+            children: [
+              Container(
+                width: 76,
+                height: 76,
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(.10),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  today
+                      ? Icons.verified_user_rounded
+                      : Icons.event_available_rounded,
+                  color: Colors.green,
+                  size: 38,
+                ),
+              ),
+              const SizedBox(height: 18),
+              Text(
+                today ? 'Everyone is present' : 'No absent records',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    color: _textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 7),
+              Text(
+                today
+                    ? 'All employees have checked in today.'
+                    : 'There are no absences in the selected date range.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    color: _textSecondary, fontSize: 13, height: 1.45),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 
   Widget _buildAbsentEmployeeCard(Map<String, dynamic> emp, int index) {
     final isExpanded = _expandedCards.contains(index);
-    
     final absentRecords = emp['absentRecords'] as List? ?? [];
     final totalAbsentDays = emp['totalAbsentDays'] ?? absentRecords.length;
 
     if (absentRecords.isEmpty && _selectedFilter != 'Today') {
-      return SizedBox.shrink();
+      return const SizedBox.shrink();
     }
 
-    return Card(
-      margin: EdgeInsets.only(bottom: 12),
-      color: Colors.white,
-      elevation: 3,
+    final employeeName = emp['employeeName']?.toString() ?? 'Unknown';
+    final employeeId = emp['employeeId']?.toString() ?? '';
+    final department = emp['department']?.toString() ?? '';
+    final initial = employeeName.trim().isNotEmpty
+        ? employeeName.trim()[0].toUpperCase()
+        : '?';
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: isExpanded ? _primary.withOpacity(.35) : _border,
+          width: isExpanded ? 1.2 : 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isExpanded ? .07 : .035),
+            blurRadius: isExpanded ? 18 : 12,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
       child: Column(
         children: [
-          ListTile(
-            leading: CircleAvatar(
-              backgroundColor: Colors.deepOrange[100],
-              child: Icon(Icons.person_off, color: Colors.deepOrange[700]),
-            ),
-            title: Text(
-              emp['employeeName'] ?? 'Unknown',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(height: 4),
-                Text('${emp['employeeId'] ?? ''} • ${emp['department'] ?? ''}'),
-                if (_selectedFilter == 'Today') ...[
-                  SizedBox(height: 4),
-                  Text(
-                    'No check-in recorded',
-                    style: TextStyle(fontSize: 12, color: Colors.red),
-                  ),
-                ] else ...[
-                  SizedBox(height: 4),
-                  Text(
-                    'Absent $totalAbsentDays day${totalAbsentDays > 1 ? 's' : ''} in selected range',
-                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                  ),
-                ],
-              ],
-            ),
-            trailing: Container(
-              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.deepOrange[50],
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.deepOrange),
-              ),
-              child: Text(
-                _selectedFilter == 'Today' 
-                    ? 'ABSENT' 
-                    : '$totalAbsentDays day${totalAbsentDays > 1 ? 's' : ''}',
-                style: TextStyle(
-                  color: Colors.deepOrange[700],
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
-                ),
-              ),
-            ),
-            onTap: () {
-              setState(() {
-                if (isExpanded) {
-                  _expandedCards.remove(index);
-                } else {
-                  _expandedCards.add(index);
-                }
-              });
-            },
-          ),
-          
-          // Expanded Section (Accordion)
-          if (isExpanded)
-            Container(
-              padding: EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.grey[50],
-                borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(12),
-                  bottomRight: Radius.circular(12),
-                ),
-                border: Border(
-                  top: BorderSide(color: Colors.grey.shade300),
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Absent Details',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      color: Colors.deepOrange[700],
-                    ),
-                  ),
-                  SizedBox(height: 12),
-                  
-                  if (_selectedFilter == 'Today') ...[
-                    _buildDetailRow(
-                      icon: Icons.calendar_today,
-                      label: 'Date:',
-                      value: DateFormat('EEEE, MMMM dd, yyyy').format(DateTime.now()),
-                    ),
-                    _buildDetailRow(
-                      icon: Icons.info_outline,
-                      label: 'Status:',
-                      value: 'No check-in recorded',
-                    ),
-                  ] else ...[
-                    // Date Range Details - List all absent dates
-                    Text(
-                      'Absent Dates:',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(18),
+              onTap: () {
+                setState(() {
+                  if (isExpanded) {
+                    _expandedCards.remove(index);
+                  } else {
+                    _expandedCards.add(index);
+                  }
+                });
+              },
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        gradient: _primaryGradient,
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        initial,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800),
                       ),
                     ),
-                    SizedBox(height: 8),
-                    
-                    if (absentRecords.isEmpty)
-                      Padding(
-                        padding: EdgeInsets.symmetric(vertical: 8),
-                        child: Text(
-                          'No absent records for this period',
-                          style: TextStyle(color: Colors.grey, fontSize: 13),
-                        ),
-                      )
-                    else
-                      Column(
-                        children: absentRecords.map((record) {
-                          final recordDate = record['date'] ?? '';
-                          
-                          String formattedDate = recordDate;
-                          try {
-                            if (recordDate.isNotEmpty) {
-                              final dateTime = DateTime.parse(recordDate);
-                              formattedDate = DateFormat('EEEE, MMMM dd, yyyy').format(dateTime);
-                            }
-                          } catch (e) {
-                            print('Date parsing error: $e');
-                          }
-                          
-                          return Container(
-                            margin: EdgeInsets.only(bottom: 8),
-                            padding: EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Colors.grey.shade200),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(Icons.circle, size: 8, color: Colors.deepOrange[400]),
-                                SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        formattedDate,
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w500,
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                      Text(
-                                        'No check-in recorded',
-                                        style: TextStyle(
-                                          color: Colors.red,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(employeeName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  color: _textPrimary,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800)),
+                          const SizedBox(height: 5),
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  employeeId.isEmpty ? 'Employee' : employeeId,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                      color: _textSecondary,
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w600),
                                 ),
-                                Container(
-                                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.deepOrange[50],
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
+                              ),
+                              if (department.isNotEmpty) ...[
+                                const Padding(
+                                  padding:
+                                      EdgeInsets.symmetric(horizontal: 6),
+                                  child: Text('•',
+                                      style:
+                                          TextStyle(color: _textSecondary)),
+                                ),
+                                Flexible(
                                   child: Text(
-                                    'ABSENT',
-                                    style: TextStyle(
-                                      color: Colors.deepOrange[700],
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 11,
-                                    ),
+                                    department,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                        color: _textSecondary,
+                                        fontSize: 11.5),
                                   ),
                                 ),
                               ],
-                            ),
-                          );
-                        }).toList(),
+                            ],
+                          ),
+                        ],
                       ),
-                      
-                    SizedBox(height: 12),
-                    _buildDetailRow(
-                      icon: Icons.date_range,
-                      label: 'Selected Range:',
-                      value: '${DateFormat('MMM dd, yyyy').format(_startDate!)} - ${DateFormat('MMM dd, yyyy').format(_endDate!)}',
                     ),
-                    _buildDetailRow(
-                      icon: Icons.calendar_today,
-                      label: 'Total Absent Days:',
-                      value: '$totalAbsentDays day${totalAbsentDays > 1 ? 's' : ''}',
+                    const SizedBox(width: 8),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withOpacity(.08),
+                            borderRadius: BorderRadius.circular(20),
+                            border:
+                                Border.all(color: Colors.red.withOpacity(.18)),
+                          ),
+                          child: Text(
+                            _selectedFilter == 'Today'
+                                ? 'ABSENT'
+                                : '$totalAbsentDays ${totalAbsentDays == 1 ? 'day' : 'days'}',
+                            style: const TextStyle(
+                                color: Color(0xFFD64545),
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w800),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Icon(
+                          isExpanded
+                              ? Icons.keyboard_arrow_up_rounded
+                              : Icons.keyboard_arrow_down_rounded,
+                          color: _textSecondary,
+                          size: 21,
+                        ),
+                      ],
                     ),
                   ],
-                ],
+                ),
+              ),
+            ),
+          ),
+          if (isExpanded)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 430),
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  child: _buildExpandedAbsentDetails(
+                    absentRecords,
+                    totalAbsentDays,
+                  ),
+                ),
               ),
             ),
         ],
@@ -502,35 +634,176 @@ class _AbsentEmployeesScreenState extends State<AbsentEmployeesScreen> {
     );
   }
 
-  Widget _buildDetailRow({required IconData icon, required String label, required String value}) {
-    return Padding(
-      padding: EdgeInsets.only(bottom: 8),
+  Widget _buildExpandedAbsentDetails(
+      List absentRecords, dynamic totalAbsentDays) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _pageBg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: Colors.red.withOpacity(.09),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.event_busy_rounded,
+                    color: Color(0xFFD64545), size: 18),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text('Absence details',
+                    style: TextStyle(
+                        color: _textPrimary,
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w800)),
+              ),
+              if (_selectedFilter == 'Date Range')
+                _buildSmallStatusPill(
+                    '$totalAbsentDays ${totalAbsentDays == 1 ? 'day' : 'days'}'),
+            ],
+          ),
+          const SizedBox(height: 14),
+          if (_selectedFilter == 'Today') ...[
+            _buildInfoTile(
+              Icons.calendar_today_rounded,
+              'Date',
+              DateFormat('EEEE, MMMM dd, yyyy').format(DateTime.now()),
+            ),
+            const SizedBox(height: 8),
+            _buildInfoTile(
+              Icons.login_rounded,
+              'Status',
+              'No check-in recorded',
+              valueColor: const Color(0xFFD64545),
+            ),
+          ] else ...[
+            const Text('Absent dates',
+                style: TextStyle(
+                    color: _textSecondary,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            if (absentRecords.isEmpty)
+              _buildInfoTile(
+                  Icons.info_outline_rounded,
+                  'Records',
+                  'No absent records for this period')
+            else
+              ...absentRecords.map((record) {
+                final recordDate = record['date']?.toString() ?? '';
+                String formattedDate = recordDate;
+                try {
+                  if (recordDate.isNotEmpty) {
+                    formattedDate = DateFormat('EEEE, MMMM dd, yyyy')
+                        .format(DateTime.parse(recordDate));
+                  }
+                } catch (_) {}
+
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(11),
+                    border: Border.all(color: _border),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(
+                            color: Color(0xFFD64545), shape: BoxShape.circle),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(formattedDate,
+                            style: const TextStyle(
+                                color: _textPrimary,
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600)),
+                      ),
+                      _buildSmallStatusPill('ABSENT'),
+                    ],
+                  ),
+                );
+              }),
+            const SizedBox(height: 4),
+            _buildInfoTile(
+              Icons.date_range_rounded,
+              'Selected range',
+              '${DateFormat('MMM dd, yyyy').format(_startDate!)} - ${DateFormat('MMM dd, yyyy').format(_endDate!)}',
+            ),
+            const SizedBox(height: 8),
+            _buildInfoTile(
+              Icons.event_busy_rounded,
+              'Total absent',
+              '$totalAbsentDays ${totalAbsentDays == 1 ? 'day' : 'days'}',
+              valueColor: const Color(0xFFD64545),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoTile(IconData icon, String label, String value,
+      {Color? valueColor}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(11),
+        border: Border.all(color: _border),
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 16, color: Colors.grey[600]),
-          SizedBox(width: 8),
+          Icon(icon, color: _primary, size: 17),
+          const SizedBox(width: 10),
           SizedBox(
-            width: 110,
-            child: Text(
-              label,
-              style: TextStyle(
-                color: Colors.grey[700],
-                fontSize: 13,
-              ),
-            ),
+            width: 88,
+            child: Text(label,
+                style: const TextStyle(
+                    color: _textSecondary,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600)),
           ),
           Expanded(
-            child: Text(
-              value,
-              style: TextStyle(
-                fontWeight: FontWeight.w500,
-                fontSize: 13,
-              ),
-            ),
+            child: Text(value,
+                style: TextStyle(
+                    color: valueColor ?? _textPrimary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700)),
           ),
         ],
       ),
     );
   }
+
+  Widget _buildSmallStatusPill(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.red.withOpacity(.08),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(text,
+          style: const TextStyle(
+              color: Color(0xFFD64545),
+              fontSize: 9.5,
+              fontWeight: FontWeight.w800)),
+    );
+  }
+
 }

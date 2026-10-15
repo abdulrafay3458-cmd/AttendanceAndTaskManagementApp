@@ -31,7 +31,7 @@ class _CancelLeaveDaysDialogState extends State<CancelLeaveDaysDialog> {
 
     try {
       final success = await ApiService.cancelLeaveDays(
-        employeeId: ApiService.employeeId!,
+        employeeId: ApiService.empGuid!,
         leaveId: widget.leave.id,
         selectedDates: selectedDates.toList(),
         reason: _reasonController.text.trim(),

@@ -29,7 +29,7 @@ class _LeaveScreenState extends State<LeaveScreen> {
   Future<void> _loadLeaveRequests() async {
     setState(() => _isLoading = true);
 
-    final empCode = ApiService.employeeId;
+    final empCode = ApiService.empGuid;
     if (empCode == null || empCode.isEmpty) {
       print('Employee code is null');
       setState(() => _isLoading = false);
@@ -46,7 +46,7 @@ class _LeaveScreenState extends State<LeaveScreen> {
   Future<void> _loadLeaveStatistics() async {
     setState(() => _isLoadingStats = true);
 
-    final empCode = ApiService.employeeId;
+    final empCode = ApiService.empGuid;
     if (empCode == null || empCode.isEmpty) {
       print('Employee code is null for stats');
       setState(() => _isLoadingStats = false);
@@ -93,15 +93,11 @@ class _LeaveScreenState extends State<LeaveScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          'Leave Request',
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: SizeConfig.f(20),
-          ),
+          'Leave Requests',
+          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 17),
         ),
         backgroundColor: Colors.white,
-        foregroundColor: Colors.blue[700],
-        elevation: 0,
+        foregroundColor: const Color.fromARGB(255, 12, 86, 147),
         actions: [
           const SizedBox(width: 8),
           IconButton(

@@ -1,6 +1,7 @@
 class EmployeeProfileModel {
   final String code;
   final String employeeCode;
+  final String employeeId;
   final String employeeName;
   final String adminCode;
   final DateTime requestDate;
@@ -14,6 +15,7 @@ class EmployeeProfileModel {
   EmployeeProfileModel({
     required this.code,
     required this.employeeCode,
+    required this.employeeId,
     required this.employeeName,
     required this.adminCode,
     required this.requestDate,
@@ -31,6 +33,7 @@ class EmployeeProfileModel {
     return EmployeeProfileModel(
       code: json['code'] ?? '',
       employeeCode: json['employeeCode'] ?? '',
+      employeeId: json['employeeId'] ?? '',
       adminCode: json['adminCode'] ?? '',
       employeeName: json['employeeName'] ?? '',
         // employeeName: 'hifza',

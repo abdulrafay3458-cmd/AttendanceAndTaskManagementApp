@@ -76,6 +76,24 @@ class TeamMemberRecord {
   }
 }
 
+// class ReportingMemberModel {
+//   final String employeeId;
+//   final String employeeName;
+//   final String employeeCode;
+//   ReportingMemberModel({
+//     required this.employeeId,
+//     required this.employeeName,
+//     required this.employeeCode,
+//   });
+//   factory ReportingMemberModel.fromJson(Map<String, dynamic> json) {
+//     return ReportingMemberModel(
+//       employeeId: (json['employeeId'] ?? '').toString(),
+//       employeeName: (json['employeeName'] ?? '').toString(),
+//       employeeCode: (json['employeeCode'] ?? '').toString(),
+//     );
+//   }
+// }
+
 // One row per person under a manager, at any depth — used for the "reporting
 // head sees everyone under their team lead" visibility requirement.
 class SubordinateModel {

@@ -26,7 +26,8 @@ class _PendingLeaveApprovalsScreenState extends State<PendingLeaveApprovalsScree
     setState(() => _isLoading = true);
 
     // final managerId = ApiService.employeeId;
-    final managerId = ApiService.currentEmployee?.employeeId;
+    final managerId = ApiService.empGuid;
+    print("Manager ${managerId}");
     if (managerId != null) {
       final data = await ApiService.getPendingLeaveApprovals(managerId);
       setState(() {
@@ -114,10 +115,10 @@ class _PendingLeaveApprovalsScreenState extends State<PendingLeaveApprovalsScree
       appBar: AppBar(
         title: Text(
           'Pending Leaves Approvals',
-          style: TextStyle(fontWeight: FontWeight.w600),
+          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 17),
         ),
         backgroundColor: Colors.white,
-        foregroundColor: Colors.blue[700],
+        foregroundColor: const Color.fromARGB(255, 12, 86, 147),
         actions: [
           IconButton(
             icon: Icon(Icons.refresh),

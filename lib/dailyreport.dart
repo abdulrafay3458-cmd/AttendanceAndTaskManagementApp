@@ -16,6 +16,45 @@ class DailyReportScreen extends StatefulWidget {
 }
 
 class _DailyReportScreenState extends State<DailyReportScreen> {
+
+  // ---------------------------------------------------------------------------
+  // Shared visual language used by employeereport.dart
+  // ---------------------------------------------------------------------------
+  static const Color _kBg = Color(0xFFF5F6FA);
+  static const Color _kInk = Color(0xFF1F2430);
+  static const Color _kMuted = Color(0xFF7A8194);
+  static const Color _kLine = Color(0xFFE6E8F0);
+  static const Color _kGreen = Color(0xFF22A06B);
+  static const Color _kAmber = Color(0xFFE59A1F);
+  static const Color _kRed = Color(0xFFE5484D);
+  static const Color _kPurple = Color(0xFF7B5CC9);
+  static const Color _kGradient = Color.fromARGB(255, 12, 86, 147);
+  static const Color _kAccent = Color.fromARGB(255, 12, 86, 147);
+
+  static const BoxShadow _softShadow = BoxShadow(
+    color: Color(0x0D1F2430),
+    blurRadius: 16,
+    offset: Offset(0, 6),
+  );
+
+  LinearGradient get _bannerGradient => LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [_kGradient, _kGradient.withOpacity(0.72)],
+      );
+
+  TextStyle _labelStyle() => TextStyle(
+        color: _kMuted,
+        fontSize: SizeConfig.f(11),
+        fontWeight: FontWeight.w600,
+      );
+
+  TextStyle _valueStyle(Color color) => TextStyle(
+        color: color,
+        fontSize: SizeConfig.f(22),
+        fontWeight: FontWeight.w800,
+      );
+
   Map<String, dynamic>? _report;
   bool _isLoading = true;
   String _selectedRange = 'Today'; // Default to Today
@@ -43,7 +82,7 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final managerId = ApiService.employeeId;
+      final managerId = ApiService.empGuid;
       String url = '';
       
       // Build URL based on selected range
@@ -123,105 +162,116 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
   }
 
   Widget _buildDateRangeSelector() {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Container(
-        color: Colors.grey[50],
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+    final hasRange = _startDate != null && _endDate != null;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          _softShadow,
+        ],
+      ),
+      child: Column(
+        children: [
+          // Segmented toggle
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: _kBg,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
               children: [
+                Expanded(child: _buildFilterChip('Today', Icons.today_rounded)),
                 Expanded(
-                  child: _buildFilterChipOption('Today', Icons.today),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildFilterChipOption('Date Range', Icons.date_range),
+                  child: _buildFilterChip(
+                      'Date Range', Icons.date_range_rounded),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            if (_selectedRange == 'Date Range')
-              InkWell(
-                onTap: _selectDateRange,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey.shade300),
-                    borderRadius: BorderRadius.circular(8),
-                    color: Colors.white,
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.calendar_today, size: 18, color: Colors.blue[700]),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          _getDateRangePickerText(),
-                          style: TextStyle(
-                            color: (_startDate == null || _endDate == null)
-                                ? Colors.grey
-                                : Colors.black,
-                          ),
-                        ),
-                      ),
-                      Icon(Icons.arrow_drop_down, color: Colors.grey),
-                    ],
-                  ),
-                ),
-              )
-            else
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey.shade300),
-                  borderRadius: BorderRadius.circular(8),
-                  color: Colors.white,
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.today, size: 18, color: Colors.blue[700]),
-                    const SizedBox(width: 8),
-                    Text(_getTodayDisplayText()),
-                  ],
-                ),
+          ),
+          const SizedBox(height: 10),
+          InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: _selectedRange == 'Date Range' ? _selectDateRange : null,
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              decoration: BoxDecoration(
+                border: Border.all(color: _kLine),
+                borderRadius: BorderRadius.circular(12),
               ),
-          ],
-        ),
+              child: Row(
+                children: [
+                  Icon(
+                    _selectedRange == 'Date Range'
+                        ? Icons.calendar_month_rounded
+                        : Icons.today_rounded,
+                    size: 18,
+                    color: const Color.fromARGB(255, 12, 86, 147),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _getDateRangePickerText(),
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: (_selectedRange == 'Date Range' && !hasRange)
+                            ? _kMuted
+                            : _kInk,
+                      ),
+                    ),
+                  ),
+                  if (_selectedRange == 'Date Range')
+                    const Icon(Icons.keyboard_arrow_down_rounded,
+                        color: _kMuted),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildFilterChipOption(String label, IconData icon) {
+  Widget _buildFilterChip(String label, IconData icon) {
     final isSelected = _selectedRange == label;
-    return FilterChip(
-      label: Row(
-        children: [
-          Icon(icon, size: 16, color: isSelected ? Colors.white : Colors.blue[700]),
-          const SizedBox(width: 4, height: 28),
-          Text(label),
-        ],
-      ),
-      selected: isSelected,
-      onSelected: (selected) {
-        if (selected) {
-          if (label == 'Date Range') {
-            _changeRangeType('Date Range');
-            if (_startDate == null || _endDate == null) {
-              _selectDateRange();
-            }
-          } else {
-            _changeRangeType(label);
-          }
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: () {
+        if (!isSelected) {
+          _changeRangeType(label);
+        }
+        if (label == 'Date Range' && (_startDate == null || _endDate == null)) {
+          _selectDateRange();
         }
       },
-      selectedColor: Colors.blue[700],
-      checkmarkColor: Colors.white,
-      backgroundColor: Colors.white,
-      labelStyle: TextStyle(
-        color: isSelected ? Colors.white : Colors.black87,
-        fontSize: 13,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected ? _kAccent : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 17, color: isSelected ? Colors.white : _kMuted),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w600,
+                color: isSelected ? Colors.white : _kMuted,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -265,25 +315,29 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: _kBg,
       appBar: AppBar(
+        backgroundColor: Colors.white,
+        foregroundColor: const Color.fromARGB(255, 12, 86, 147),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
         title: Text(
           'Attendance Report',
           style: TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: SizeConfig.f(20),
+            fontWeight: FontWeight.w700,
+            fontSize: 17,
           ),
         ),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.blue[700],
-        elevation: 0,
         actions: [
-          const SizedBox(width: 8),
           IconButton(
-            icon: Icon(Icons.refresh_outlined),
+            icon: const Icon(Icons.refresh_rounded),
             onPressed: _loadReport,
             tooltip: 'Refresh',
             iconSize: 22,
           ),
+          const SizedBox(width: 4),
         ],
       ),
       body: Column(
@@ -295,14 +349,12 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        CircularProgressIndicator(
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.blue[700]!),
-                        ),
+                        const CircularProgressIndicator(),
                         const SizedBox(height: 16),
                         Text(
                           'Loading Report...',
                           style: TextStyle(
-                            color: Colors.grey[600],
+                            color: _kMuted,
                             fontSize: SizeConfig.f(14),
                           ),
                         ),
@@ -311,40 +363,60 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
                   )
                 : _report == null
                     ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.error_outline,
-                              size: 64,
-                              color: Colors.grey[400],
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Failed to load report',
-                              style: TextStyle(
-                                color: Colors.grey[600],
-                                fontSize: SizeConfig.f(16),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            ElevatedButton(
-                              onPressed: _loadReport,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.blue[700],
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
+                        child: Padding(
+                          padding: const EdgeInsets.all(32),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 80,
+                                height: 80,
+                                decoration: BoxDecoration(
+                                  color: _kRed.withOpacity(0.10),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.error_outline_rounded,
+                                  size: 38,
+                                  color: _kRed,
                                 ),
                               ),
-                              child: Text(
-                                'Retry',
-                                style: TextStyle(color: Colors.white),
+                              const SizedBox(height: 14),
+                              const Text(
+                                'Failed to load report',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                  color: _kInk,
+                                ),
                               ),
-                            ),
-                          ],
+                              const SizedBox(height: 4),
+                              const Text(
+                                'Check your connection and try again.',
+                                style:
+                                    TextStyle(fontSize: 13.5, color: _kMuted),
+                              ),
+                              const SizedBox(height: 16),
+                              FilledButton.icon(
+                                onPressed: _loadReport,
+                                icon: const Icon(Icons.refresh_rounded,
+                                    size: 18),
+                                label: const Text('Retry'),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: _kAccent,
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 22, vertical: 12),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       )
                     : SingleChildScrollView(
+                        padding: const EdgeInsets.only(bottom: 32),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -363,75 +435,61 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
   Widget _buildHeader() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Colors.blue[700]!, Colors.purple[700]!],
-        ),
-        borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(40),
-          bottomRight: Radius.circular(40),
-        ),
+        gradient: _bannerGradient,
+        borderRadius: BorderRadius.circular(22),
         boxShadow: [
           BoxShadow(
-            color: Colors.blue.withOpacity(0.2),
+            color: _kGradient.withOpacity(0.30),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
         ],
       ),
-      child: Column(
+      child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(12),
+            width: 48,
+            height: 48,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(20),
+              color: Colors.white.withOpacity(0.20),
+              borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(
-              _selectedRange == 'Today' 
-                ? Icons.today_outlined
-                : Icons.date_range_outlined,
-              size: 40,
+              _selectedRange == 'Today'
+                  ? Icons.today_rounded
+                  : Icons.date_range_rounded,
+              size: 26,
               color: Colors.white,
             ),
           ),
-          const SizedBox(height: 20),
-          Text(
-            _getDateRangeText(),
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: SizeConfig.f(20),
-              fontWeight: FontWeight.w700,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _getRangeTitle(),
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.9),
-              fontSize: SizeConfig.f(14),
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              '${_selectedRange.toUpperCase()} VIEW',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: SizeConfig.f(11),
-                fontWeight: FontWeight.w600,
-                letterSpacing: 1.2,
-              ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _getRangeTitle(),
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.88),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _getDateRangeText(),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -441,15 +499,15 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
 
   Widget _buildStatistics() {
     if (_report == null || _report!['statistics'] == null) {
-      return Container(); // Return empty container if no data
+      return const SizedBox.shrink();
     }
-    
+
     final stats = _report!['statistics'];
     final summaries = _report!['employeeSummaries'] as List? ?? [];
 
     int present = 0, late = 0, absent = 0;
     double totalHours = 0;
-    
+
     for (var emp in summaries) {
       present += (emp['presentDays'] as int?) ?? 0;
       late += (emp['lateDays'] as int?) ?? 0;
@@ -457,87 +515,91 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
       totalHours += _safeGetDouble(emp['totalHoursWorked']);
     }
 
-    int totalEmployees = (stats['totalEmployees'] as int?) ?? summaries.length;
-    double coverage = (present + late + absent) > 0 
-        ? (present / (present + late + absent)) * 100 
-        : 0;
+    final totalEmployees =
+        (stats['totalEmployees'] as int?) ?? summaries.length;
+    final total = present + late + absent;
+    final coverage = total > 0 ? present / total : 0.0;
 
     return Padding(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                height: SizeConfig.h(2.5),
-                width: SizeConfig.w(1),
-                decoration: BoxDecoration(
-                  color: Colors.blue[700],
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                '$_selectedRange Statistics',
-                style: TextStyle(
-                  fontSize: SizeConfig.f(18),
-                  fontWeight: FontWeight.w700,
-                  color: Colors.grey[800],
-                ),
-              ),
-            ],
+          _buildSectionHeading(
+            '$_selectedRange Statistics',
+            trailing: '${summaries.length} Employees',
           ),
-          const SizedBox(height: 20),
-          GridView.count(
+          const SizedBox(height: 14),
+          GridView(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 2,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
-            childAspectRatio: 1.2,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              mainAxisExtent: 84,
+            ),
             children: [
-              _buildStatCard(
-                'Total Employees',
-                totalEmployees.toString(),
-                Icons.people_alt_outlined,
-                Colors.blue,
-              ),
-              _buildStatCard(
-                'Present',
-                present.toString(),
-                Icons.check_circle_outline,
-                Colors.green,
-              ),
-              _buildStatCard(
-                'Late',
-                late.toString(),
-                Icons.access_time_outlined,
-                Colors.orange,
-              ),
-              _buildStatCard(
-                'Absent',
-                absent.toString(),
-                Icons.person_off_outlined,
-                Colors.red,
-              ),
+              _buildStatCard('Total Employees', totalEmployees.toString(),
+                  Icons.people_alt_outlined, _kAccent),
+              _buildStatCard('Present', present.toString(),
+                  Icons.check_circle_outline_rounded, _kGreen),
+              _buildStatCard('Late', late.toString(),
+                  Icons.access_time_rounded, _kAmber),
+              _buildStatCard('Absent', absent.toString(),
+                  Icons.person_off_outlined, _kRed),
               if (_selectedRange != 'Today')
-                _buildStatCard(
-                  'Total Hours',
-                  '${totalHours.toStringAsFixed(1)}h',
-                  Icons.timer_outlined,
-                  Colors.blue,
-                ),
-              _buildStatCard(
-                'Coverage',
-                '${coverage.toStringAsFixed(1)}%',
-                Icons.bar_chart_outlined,
-                Colors.teal,
-              ),
+                _buildStatCard('Total Hours',
+                    '${totalHours.toStringAsFixed(1)}h',
+                    Icons.timer_outlined, _kPurple),
+              _buildStatCard('Coverage', '${(coverage * 100).toStringAsFixed(1)}%',
+                  Icons.bar_chart_rounded, _kGreen),
             ],
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildSectionHeading(String text, {String? trailing}) {
+    return Row(
+      children: [
+        Container(
+          width: 4,
+          height: 20,
+          decoration: BoxDecoration(
+            color: _kAccent,
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(
+              color: _kInk,
+              fontSize: SizeConfig.f(17),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        if (trailing != null)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: _kAccent.withOpacity(0.10),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              trailing,
+              style: TextStyle(
+                color: _kAccent,
+                fontSize: SizeConfig.f(10),
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+      ],
     );
   }
 
@@ -548,82 +610,107 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
     Color color,
   ) {
     return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(18),
         boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            blurRadius: 15,
-            offset: const Offset(0, 4),
+          _softShadow,
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, size: 24, color: color),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    value,
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: color,
+                    ),
+                  ),
+                ),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    color: _kMuted,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
-        border: Border.all(color: Colors.grey[100]!),
-      ),
-      child: Padding(
-        padding: EdgeInsets.all(SizeConfig.f(14)),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: SizeConfig.w(12),
-              height: SizeConfig.h(5),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Center(
-                child: Icon(
-                  icon,
-                  size: 24,
-                  color: color,
-                ),
-              ),
-            ),
-            SizedBox(height: SizeConfig.h(1)),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: SizeConfig.f(23),
-                fontWeight: FontWeight.w800,
-                color: color,
-              ),
-            ),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: SizeConfig.f(12),
-                color: Colors.grey[600],
-                fontWeight: FontWeight.w500,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
       ),
     );
   }
 
   Widget _buildEmployeeList() {
     final summaries = (_report?['employeeSummaries'] as List? ?? []);
-    
+
     if (summaries.isEmpty) {
       return Padding(
-        padding: const EdgeInsets.all(20),
-        child: Center(
+        padding: const EdgeInsets.fromLTRB(16, 30, 16, 30),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 34, horizontal: 20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: _kLine),
+            boxShadow: const [_softShadow],
+          ),
           child: Column(
             children: [
-              Icon(
-                Icons.people_outline,
-                size: 64,
-                color: Colors.grey[300],
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: _kAccent.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Icon(
+                  Icons.people_outline_rounded,
+                  size: 30,
+                  color: _kAccent,
+                ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
               Text(
                 'No employee data available',
                 style: TextStyle(
-                  color: Colors.grey[500],
-                  fontSize: SizeConfig.f(16),
+                  color: _kInk,
+                  fontSize: SizeConfig.f(15),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'There are no attendance records for this period.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: _kMuted,
+                  fontSize: SizeConfig.f(12),
                 ),
               ),
             ],
@@ -633,62 +720,84 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
     }
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                height: SizeConfig.h(2.5),
-                width: SizeConfig.w(1),
-                decoration: BoxDecoration(
-                  color: Colors.blue[700],
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                'Employee Details',
-                style: TextStyle(
-                  fontSize: SizeConfig.f(18),
-                  fontWeight: FontWeight.w700,
-                  color: Colors.grey[800],
-                ),
-              ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.grey[50],
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey[200]!),
-                ),
-                child: Text(
-                  '${summaries.length} Employees',
-                  style: TextStyle(
-                    fontSize: SizeConfig.f(12),
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey[600],
-                  ),
-                ),
-              ),
-            ],
+          _buildSectionHeading(
+            'Employee Details',
+            trailing: '${summaries.length} Employees',
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
           ...summaries.map((emp) => _buildEmployeeCard(emp)),
         ],
       ),
     );
   }
 
+Widget _buildDialogHeader({
+  required IconData icon,
+  required String title,
+  required int count,
+  required Color color,
+}) {
+  return Padding(
+    padding: const EdgeInsets.fromLTRB(20, 20, 12, 14),
+    child: Row(
+      children: [
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.10),
+            borderRadius: BorderRadius.circular(13),
+          ),
+          child: Icon(icon, color: color, size: 22),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  color: _kInk,
+                  fontSize: SizeConfig.f(16),
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '$count records',
+                style: TextStyle(
+                  color: _kMuted,
+                  fontSize: SizeConfig.f(11),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+        IconButton(
+          icon: const Icon(Icons.close_rounded, color: _kMuted),
+          onPressed: () => Navigator.of(context).pop(),
+          tooltip: 'Close',
+        ),
+      ],
+    ),
+  );
+}
+
 void _showPresentRecordsDialog(BuildContext context, List<dynamic> presentRecords) {
   showDialog(
     context: context,
     builder: (BuildContext context) {
       return Dialog(
+        backgroundColor: Colors.white,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(24),
         ),
         child: Container(
           width: SizeConfig.w(85),
@@ -698,34 +807,11 @@ void _showPresentRecordsDialog(BuildContext context, List<dynamic> presentRecord
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.green,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(20),
-                    topRight: Radius.circular(20),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.check_circle, color: Colors.white),
-                    SizedBox(width: SizeConfig.w(4)),
-                    Text(
-                      'Present Records (${presentRecords.length})',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: SizeConfig.f(16),
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      icon: const Icon(Icons.close, color: Colors.white),
-                      onPressed: () => Navigator.of(context).pop(),
-                    ),
-                  ],
-                ),
+              _buildDialogHeader(
+                icon: Icons.check_circle_outline_rounded,
+                title: 'Present Records',
+                count: presentRecords.length,
+                color: _kGreen,
               ),
               
               Expanded(
@@ -745,7 +831,7 @@ void _showPresentRecordsDialog(BuildContext context, List<dynamic> presentRecord
                         itemBuilder: (context, index) {
                           final record = presentRecords[index];
                           final bool isOnTime = record['isOnTime'] != false;
-                          final Color statusColor = isOnTime ? Colors.green : Colors.orange;
+                          final Color statusColor = isOnTime ? _kGreen : _kAmber;
                           
                           return Container(
                             margin: const EdgeInsets.only(bottom: 12),
@@ -844,8 +930,10 @@ void _showLateRecordsDialog(BuildContext context, List<dynamic> lateRecords) {
     context: context,
     builder: (BuildContext context) {
       return Dialog(
+        backgroundColor: Colors.white,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(24),
         ),
         child: Container(
           width: SizeConfig.w(85),
@@ -856,34 +944,11 @@ void _showLateRecordsDialog(BuildContext context, List<dynamic> lateRecords) {
             mainAxisSize: MainAxisSize.min,
             children: [
               // Header
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.orange,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(20),
-                    topRight: Radius.circular(20),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.access_time, color: Colors.white),
-                    SizedBox(width: SizeConfig.w(4)),
-                    Text(
-                      'Late Records (${lateRecords.length})',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: SizeConfig.f(16),
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      icon: const Icon(Icons.close, color: Colors.white),
-                      onPressed: () => Navigator.of(context).pop(),
-                    ),
-                  ],
-                ),
+              _buildDialogHeader(
+                icon: Icons.access_time_rounded,
+                title: 'Late Records',
+                count: lateRecords.length,
+                color: _kAmber,
               ),
               
               // Records List
@@ -908,7 +973,7 @@ void _showLateRecordsDialog(BuildContext context, List<dynamic> lateRecords) {
                             decoration: BoxDecoration(
                               color: Colors.grey[50],
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                              border: Border.all(color: _kAmber.withOpacity(0.3)),
                             ),
                             child: Padding(
                               padding: const EdgeInsets.all(16),
@@ -921,7 +986,7 @@ void _showLateRecordsDialog(BuildContext context, List<dynamic> lateRecords) {
                                       Icon(
                                         Icons.calendar_today,
                                         size: SizeConfig.f(14),
-                                        color: Colors.orange,
+                                        color: _kAmber,
                                       ),
                                       SizedBox(width: SizeConfig.w(2)),
                                       Text(
@@ -942,7 +1007,7 @@ void _showLateRecordsDialog(BuildContext context, List<dynamic> lateRecords) {
                                       Icon(
                                         Icons.access_time,
                                         size: SizeConfig.f(14),
-                                        color: Colors.orange,
+                                        color: _kAmber,
                                       ),
                                       SizedBox(width: SizeConfig.w(2)),
                                       Text(
@@ -962,14 +1027,14 @@ void _showLateRecordsDialog(BuildContext context, List<dynamic> lateRecords) {
                                       Icon(
                                         Icons.timer_off,
                                         size: SizeConfig.f(14),
-                                        color: Colors.red[300],
+                                        color: _kRed,
                                       ),
                                       SizedBox(width: SizeConfig.w(2)),
                                       Text(
                                         'Late by: ${_formatLateDuration(record['lateBy'])}',
                                         style: TextStyle(
                                           fontSize: SizeConfig.f(13),
-                                          color: Colors.red[600],
+                                          color: _kRed,
                                           fontWeight: FontWeight.w500,
                                         ),
                                       ),
@@ -984,7 +1049,7 @@ void _showLateRecordsDialog(BuildContext context, List<dynamic> lateRecords) {
                                         Icon(
                                           Icons.info_outline,
                                           size: SizeConfig.f(14),
-                                          color: Colors.orange,
+                                          color: _kAmber,
                                         ),
                                         SizedBox(width: SizeConfig.w(2)),
                                         Expanded(
@@ -1020,8 +1085,10 @@ void _showAbsentRecordsDialog(BuildContext context, List<dynamic> absentRecords)
     context: context,
     builder: (BuildContext context) {
       return Dialog(
+        backgroundColor: Colors.white,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(24),
         ),
         child: Container(
           width: SizeConfig.w(85),
@@ -1032,34 +1099,11 @@ void _showAbsentRecordsDialog(BuildContext context, List<dynamic> absentRecords)
             mainAxisSize: MainAxisSize.min,
             children: [
               // Header
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.red,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(20),
-                    topRight: Radius.circular(20),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.person_off, color: Colors.white),
-                    SizedBox(width: SizeConfig.w(4)),
-                    Text(
-                      'Absent Records (${absentRecords.length})',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: SizeConfig.f(16),
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      icon: const Icon(Icons.close, color: Colors.white),
-                      onPressed: () => Navigator.of(context).pop(),
-                    ),
-                  ],
-                ),
+              _buildDialogHeader(
+                icon: Icons.person_off_outlined,
+                title: 'Absent Records',
+                count: absentRecords.length,
+                color: _kRed,
               ),
               
               // Records List
@@ -1087,7 +1131,7 @@ void _showAbsentRecordsDialog(BuildContext context, List<dynamic> absentRecords)
                               color: Colors.grey[50],
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                color: isOnLeave ? Colors.blue.withOpacity(0.3) : Colors.red.withOpacity(0.3),
+                                color: isOnLeave ? Colors.blue.withOpacity(0.3) : _kRed.withOpacity(0.3),
                               ),
                             ),
                             child: Padding(
@@ -1101,7 +1145,7 @@ void _showAbsentRecordsDialog(BuildContext context, List<dynamic> absentRecords)
                                       Icon(
                                         Icons.calendar_today,
                                         size: SizeConfig.f(14),
-                                        color: isOnLeave ? Colors.blue : Colors.red,
+                                        color: isOnLeave ? Colors.blue : _kRed,
                                       ),
                                       SizedBox(width: SizeConfig.w(2)),
                                       Text(
@@ -1122,14 +1166,14 @@ void _showAbsentRecordsDialog(BuildContext context, List<dynamic> absentRecords)
                                   //     Icon(
                                   //       isOnLeave ? Icons.beach_access : Icons.work_off,
                                   //       size: SizeConfig.f(14),
-                                  //       color: isOnLeave ? Colors.blue : Colors.red,
+                                  //       color: isOnLeave ? Colors.blue : _kRed,
                                   //     ),
                                   //     SizedBox(width: SizeConfig.w(2)),
                                   //     Text(
                                   //       isOnLeave ? 'On Leave' : 'Absent without leave',
                                   //       style: TextStyle(
                                   //         fontSize: SizeConfig.f(13),
-                                  //         color: isOnLeave ? Colors.blue[600] : Colors.red[600],
+                                  //         color: isOnLeave ? Colors.blue[600] : _kRed[600],
                                   //         fontWeight: FontWeight.w500,
                                   //       ),
                                   //     ),
@@ -1144,7 +1188,7 @@ void _showAbsentRecordsDialog(BuildContext context, List<dynamic> absentRecords)
                                         Icon(
                                           Icons.info_outline,
                                           size: SizeConfig.f(14),
-                                          color: isOnLeave ? Colors.blue : Colors.red,
+                                          color: isOnLeave ? Colors.blue : _kRed,
                                         ),
                                         SizedBox(width: SizeConfig.w(2)),
                                         Expanded(
@@ -1231,63 +1275,64 @@ Widget _buildDetailItem(
   IconData icon, {
   VoidCallback? onTap,
 }) {
-  return GestureDetector(
-    onTap: onTap,
-    child: Container(
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: onTap != null 
-              ? color.withOpacity(0.3)
-              : Colors.grey[100]!,
+  return Material(
+    color: Colors.transparent,
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: _kBg,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: onTap != null ? color.withOpacity(0.22) : _kLine,
+          ),
         ),
-      ),
-      padding: EdgeInsets.symmetric(horizontal: SizeConfig.f(6), vertical: SizeConfig.f(6)),
-      child: Row(
-        children: [
-          Container(
-            width: SizeConfig.w(9),
-            height: SizeConfig.h(9),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
+        child: Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.10),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, size: 17, color: color),
             ),
-            child: Center(
-              child: Icon(
-                icon,
-                size: SizeConfig.w(5),
-                color: color,
+            const SizedBox(width: 9),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: _labelStyle(),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: color,
+                      fontSize: SizeConfig.f(13),
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
               ),
             ),
-          ),
-          SizedBox(width: SizeConfig.w(4)),
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: SizeConfig.f(9),
-                    color: Colors.grey[600],
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    color: color,
-                    fontSize: SizeConfig.f(13),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+            if (onTap != null)
+              const Icon(
+                Icons.chevron_right_rounded,
+                size: 18,
+                color: _kMuted,
+              ),
+          ],
+        ),
       ),
     ),
   );
@@ -1295,180 +1340,176 @@ Widget _buildDetailItem(
 
 // Make this a StatefulWidget or use StatefulBuilder
 Widget _buildEmployeeCard(Map<String, dynamic> emp) {
-  final present = emp['presentDays'] ?? 0;
-  final late = emp['lateDays'] ?? 0;
-  final absent = emp['absentDays'] ?? 0;
-  final hoursText = '${_safeGetDouble(emp['totalHoursWorked']).toStringAsFixed(1)}h';
+    final present = emp['presentDays'] ?? 0;
+    final late = emp['lateDays'] ?? 0;
+    final absent = emp['absentDays'] ?? 0;
+    final hoursText =
+        '${_safeGetDouble(emp['totalHoursWorked']).toStringAsFixed(1)}h';
 
-  final bool isPeriodicReport = _selectedRange == 'Date Range';
-  
-  Color statusColor = !isPeriodicReport 
-      ? (absent > 0 ? Colors.red : (late > 0 ? Colors.orange : Colors.green))
-      : Colors.blue;
+    final bool isPeriodicReport = _selectedRange == 'Date Range';
 
-  return Container(
-    margin: const EdgeInsets.only(bottom: 16),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(20),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.grey.withOpacity(0.08),
-          blurRadius: 12,
-          offset: const Offset(0, 4),
-        ),
-      ],
-      border: Border.all(color: Colors.grey[100]!),
-    ),
-    child: Theme(
-      data: Theme.of(context).copyWith(
-        dividerColor: Colors.transparent,
+    final Color statusColor = !isPeriodicReport
+        ? (absent > 0 ? _kRed : (late > 0 ? _kAmber : _kGreen))
+        : _kAccent;
+
+    final name = (emp['employeeName'] ?? '').toString();
+    final dept = (emp['department'] ?? '').toString();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          _softShadow,
+        ],
       ),
-      child: ExpansionTile(
-        leading: Container(
-          width: SizeConfig.w(11),
-          height: SizeConfig.h(7),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                statusColor.withOpacity(0.2),
-                statusColor.withOpacity(0.1),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          shape: const Border(),
+          collapsedShape: const Border(),
+          tilePadding:
+              const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+          leading: Container(
+            width: SizeConfig.f(44),
+            height: SizeConfig.f(44),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              gradient: _bannerGradient,
+              borderRadius: BorderRadius.circular(14),
             ),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Center(
             child: Text(
-              _getInitial(emp['employeeName']),
+              _getInitial(name),
               style: TextStyle(
-                color: statusColor,
+                color: Colors.white,
                 fontWeight: FontWeight.w800,
                 fontSize: SizeConfig.f(16),
               ),
             ),
           ),
-        ),
-        title: Text(
-          emp['employeeName'].toString(),
-          style: TextStyle(
-            fontWeight: FontWeight.w700,
-            fontSize: SizeConfig.f(14),
-            color: Colors.grey[800],
-          ),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(height: SizeConfig.h(0.3)),
-            Text(
-              'ID: ${emp['employeeId']}',
-              style: TextStyle(
-                color: Colors.grey[500],
-                fontSize: SizeConfig.f(11),
-                fontWeight: FontWeight.w500,
-              ),
+          title: Text(
+            name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 15,
+              color: _kInk,
             ),
-            const SizedBox(height: 2),
-            Text(
-              emp['department'].toString(),
-              style: TextStyle(
-                color: Colors.blue[700],
-                fontSize: SizeConfig.f(11),
-                fontWeight: FontWeight.w600,
+          ),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 3),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'ID: ${emp['employeeId']}',
+                  style: const TextStyle(fontSize: 12, color: _kMuted),
+                ),
+                if (dept.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    dept,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: _kAccent,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          trailing: isPeriodicReport
+              ? null
+              : Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: statusColor.withOpacity(0.10),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        absent > 0
+                            ? Icons.cancel_outlined
+                            : (late > 0
+                                ? Icons.access_time_rounded
+                                : Icons.check_circle_rounded),
+                        size: 14,
+                        color: statusColor,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        absent > 0 ? 'ABSENT' : (late > 0 ? 'LATE' : 'PRESENT'),
+                        style: TextStyle(
+                          color: statusColor,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 10.5,
+                          letterSpacing: 0.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+          children: [
+            const Divider(height: 1, color: _kLine, indent: 16, endIndent: 16),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: GridView(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                  mainAxisExtent: 66,
+                ),
+                children: [
+                  _buildDetailItem(
+                    'Present Days',
+                    present.toString(),
+                    _kGreen,
+                    Icons.check_circle_outline_rounded,
+                    onTap: () => _showPresentRecordsDialog(
+                        context, emp['presentRecords'] ?? []),
+                  ),
+                  _buildDetailItem(
+                    'Late Days',
+                    late.toString(),
+                    _kAmber,
+                    Icons.access_time_rounded,
+                    onTap: () => _showLateRecordsDialog(
+                        context, emp['lateRecords'] ?? []),
+                  ),
+                  _buildDetailItem(
+                    'Absent Days',
+                    absent.toString(),
+                    _kRed,
+                    Icons.person_off_outlined,
+                    onTap: () => _showAbsentRecordsDialog(
+                        context, emp['absentRecords'] ?? []),
+                  ),
+                  _buildDetailItem(
+                    'Total Hours',
+                    hoursText,
+                    _kAccent,
+                    Icons.timer_outlined,
+                  ),
+                ],
               ),
             ),
           ],
         ),
-        trailing: isPeriodicReport 
-            ? null
-            : Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: statusColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: statusColor.withOpacity(0.3)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      absent > 0
-                          ? Icons.cancel_outlined
-                          : (late > 0 ? Icons.access_time : Icons.check_circle),
-                      size: SizeConfig.f(14),
-                      color: statusColor,
-                    ),
-                    SizedBox(width: SizeConfig.w(3)),
-                    Text(
-                      absent > 0 ? 'ABSENT' : (late > 0 ? 'LATE' : 'PRESENT'),
-                      style: TextStyle(
-                        color: statusColor,
-                        fontWeight: FontWeight.w700,
-                        fontSize: SizeConfig.f(10),
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-        children: [
-          Divider(
-            height: 1,
-            color: Colors.grey[100],
-            indent: 20,
-            endIndent: 20,
-          ),
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              children: [
-                GridView.count(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 16,
-                  mainAxisSpacing: 16,
-                  childAspectRatio: 2.5,
-                  children: [
-                    _buildDetailItem(
-                      'Present Days',
-                      present.toString(),
-                      Colors.green,
-                      Icons.check_circle_outlined,
-                      onTap: () => _showPresentRecordsDialog(context, emp['presentRecords'] ?? []),
-                    ),
-                    _buildDetailItem(
-                      'Late Days',
-                      late.toString(),
-                      Colors.orange,
-                      Icons.access_time_outlined,
-                      onTap: () => _showLateRecordsDialog(context, emp['lateRecords'] ?? []),
-                    ),
-                    _buildDetailItem(
-                      'Absent Days',
-                      absent.toString(),
-                      Colors.red,
-                      Icons.person_off_outlined,
-                      onTap: () => _showAbsentRecordsDialog(context, emp['absentRecords'] ?? []),
-                    ),
-                    _buildDetailItem(
-                      'Total Hours',
-                      hoursText,
-                      Colors.blue,
-                      Icons.timer_outlined,
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
-    ),
-  );
-}
+    );
+  }
 
 String _getInitial(String? name) {
   if (name == null || name.isEmpty) return '?';

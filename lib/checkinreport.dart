@@ -31,6 +31,14 @@ class _CheckinReportScreen extends State<CheckinReportScreen> {
   /// Only one can be expanded at a time.
   String? _expandedEmpCode;
 
+  // Professional UI palette
+  static const Color _primary = Color.fromARGB(255, 12, 86, 147);
+  static const Color _pageBackground = Color(0xFFF5F7FB);
+  static const Color _border = Color(0xFFE4E9F0);
+  static const Color _textPrimary = Color(0xFF172033);
+  static const Color _textSecondary = Color(0xFF6B7280);
+
+
   @override
   void initState() {
     super.initState();
@@ -41,7 +49,7 @@ class _CheckinReportScreen extends State<CheckinReportScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final managerId = ApiService.employeeId;
+      final managerId = ApiService.empGuid;
       String url = '';
 
       if (_selectedFilter == 'Today') {
@@ -122,7 +130,7 @@ class _CheckinReportScreen extends State<CheckinReportScreen> {
     setState(() => _isExporting = true);
 
     try {
-      final managerId = ApiService.employeeId;
+      final managerId = ApiService.empGuid;
 
       String startDate;
       String endDate;
@@ -452,23 +460,20 @@ class _CheckinReportScreen extends State<CheckinReportScreen> {
     final isDetailView = expandedEmp != null;
 
     return Scaffold(
+      backgroundColor: _pageBackground,
       appBar: AppBar(
-        title: Text(
-          isDetailView ? 'Check In/Out Detail' : 'Check In/Out Report',
-          style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
         backgroundColor: Colors.white,
-        foregroundColor: Colors.blue[700],
-        leading: isDetailView
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: () {
-                  setState(() => _expandedEmpCode = null);
-                },
-              )
-            : null,
+        foregroundColor: const Color.fromARGB(255, 12, 86, 147),
+        titleSpacing: isDetailView ? 0 : 16,
+        title: Text(
+          isDetailView
+              ? 'Check In/Out Detail'
+              : 'Check In/Out Report',
+          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 17),
+        ),
         actions: [
           IconButton(
+            tooltip: 'Export Excel',
             icon: _isExporting
                 ? SizedBox(
                     width: 20,
@@ -478,151 +483,269 @@ class _CheckinReportScreen extends State<CheckinReportScreen> {
                       color: Colors.blue[700],
                     ),
                   )
-                : const Icon(Icons.file_download),
+                : const Icon(Icons.file_download_outlined),
             onPressed: _isExporting ? null : _exportExcelReport,
-            tooltip: 'Export Excel Report',
           ),
           IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadData,
+            tooltip: 'Refresh',
+            icon: const Icon(Icons.refresh_rounded),
+            onPressed: _isLoading ? null : _loadData,
           ),
+          const SizedBox(width: 4),
         ],
+        bottom: isDetailView
+            ? null
+            : PreferredSize(
+                preferredSize: const Size.fromHeight(124),
+                child: _buildFilterSection(),
+              ),
       ),
-      body: Column(
+      body: isDetailView
+          ? _buildDetailBody(expandedEmp!)
+          : _buildReportBody(),
+    );
+  }
+
+  Widget _buildFilterSection() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(bottom: BorderSide(color: _border)),
+      ),
+      child: Column(
         children: [
-          // Filter section
-          Container(
-            padding: const EdgeInsets.all(16),
-            color: Colors.grey[50],
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(child: _buildFilterChip('Today', Icons.today)),
-                    const SizedBox(width: 12),
-                    Expanded(
-                        child:
-                            _buildFilterChip('Date Range', Icons.date_range)),
-                  ],
+          Row(
+            children: [
+              Expanded(child: _buildFilterChip('Today', Icons.today_rounded)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _buildFilterChip(
+                  'Date Range',
+                  Icons.date_range_rounded,
                 ),
-                const SizedBox(height: 12),
-                if (_selectedFilter == 'Date Range')
-                  InkWell(
-                    onTap: _selectDateRange,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 10),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(8),
-                        color: Colors.white,
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          InkWell(
+            onTap: _selectedFilter == 'Date Range' ? _selectDateRange : null,
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              decoration: BoxDecoration(
+                color: _pageBackground,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: _border),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    _selectedFilter == 'Today'
+                        ? Icons.event_available_rounded
+                        : Icons.calendar_month_rounded,
+                    size: 18,
+                    color: Colors.blue[700],
+                  ),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Text(
+                      _getFilterDisplayText(),
+                      style: const TextStyle(
+                        color: _textPrimary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
                       ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.calendar_today,
-                              size: 18, color: Colors.blue[700]),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              _getFilterDisplayText(),
-                              style: TextStyle(
-                                color:
-                                    (_startDate == null || _endDate == null)
-                                        ? Colors.grey
-                                        : Colors.black,
-                              ),
-                            ),
-                          ),
-                          const Icon(Icons.arrow_drop_down,
-                              color: Colors.grey),
-                        ],
-                      ),
-                    ),
-                  )
-                else
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 10),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey.shade300),
-                      borderRadius: BorderRadius.circular(8),
-                      color: Colors.white,
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.today, size: 18, color: Colors.blue[700]),
-                        const SizedBox(width: 8),
-                        Text(_getFilterDisplayText()),
-                      ],
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
-              ],
+                  if (_selectedFilter == 'Date Range')
+                    Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: Colors.grey[600],
+                    ),
+                ],
+              ),
             ),
-          ),
-
-          // Global column header
-          Container(
-            color: Colors.blue[700],
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            child: Row(
-              children: [
-                _headerCell('Emp Code', flex: 2),
-                _headerCell('Emp Name', flex: 4),
-                _headerCell('Date', flex: 3),
-              ],
-            ),
-          ),
-
-          // Pinned employee header — only visible when one is expanded
-          if (isDetailView) _buildPinnedEmployeeHeader(expandedEmp!),
-
-          // Content
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _employeeSummaries.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              _selectedFilter == 'Today'
-                                  ? Icons.check_circle
-                                  : Icons.calendar_view_day,
-                              size: 64,
-                              color: Colors.green,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'No records found',
-                              style: TextStyle(
-                                  fontSize: 18, color: Colors.grey[600]),
-                            ),
-                          ],
-                        ),
-                      )
-                    : RefreshIndicator(
-                        onRefresh: _loadData,
-                        child: isDetailView
-                            ? _buildExpandedDetail(expandedEmp)
-                            : _buildEmployeeList(),
-                      ),
           ),
         ],
       ),
     );
   }
 
+  Widget _buildReportBody() {
+    return Column(
+      children: [
+        Container(
+          margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [_primary, _primary.withOpacity(0.72)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                color: _primary.withOpacity(0.16),
+                blurRadius: 12,
+                offset: const Offset(0, 5),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.groups_rounded,
+                color: Colors.white,
+                size: 21,
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  'Employee Attendance',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              _buildCountBadge(_employeeSummaries.length),
+            ],
+          ),
+        ),
+        Expanded(
+          child: _buildReportContent(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildReportContent() {
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
+    }
+
+    if (_employeeSummaries.isEmpty) {
+      return _buildEmptyState();
+    }
+
+    return RefreshIndicator(
+      color: Colors.blue[700],
+      onRefresh: _loadData,
+      child: _buildEmployeeList(),
+    );
+  }
+
+  Widget _buildDetailBody(Map<String, dynamic> emp) {
+    return Column(
+      children: [
+        _buildPinnedEmployeeHeader(emp),
+        Expanded(
+          child: RefreshIndicator(
+            color: Colors.blue[700],
+            onRefresh: _loadData,
+            child: _buildExpandedDetail(emp),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCountBadge(int count) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.16),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.22)),
+      ),
+      child: Text(
+        '$count',
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(28),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: _border),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.08),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  _selectedFilter == 'Today'
+                      ? Icons.event_available_rounded
+                      : Icons.calendar_view_day_rounded,
+                  size: 38,
+                  color: Colors.blue[700],
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'No attendance records',
+                style: TextStyle(
+                  color: _textPrimary,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                _selectedFilter == 'Today'
+                    ? 'There are no check-in/out records for today.'
+                    : 'No records were found for the selected date range.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: _textSecondary,
+                  fontSize: 12,
+                  height: 1.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildEmployeeList() {
-    return ListView.builder(
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
       physics: const AlwaysScrollableScrollPhysics(),
       itemCount: _employeeSummaries.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
         final emp = _employeeSummaries[index];
         if (emp is! Map<String, dynamic>) {
           return const SizedBox.shrink();
         }
+
         final header = _buildEmployeeHeaderData(emp);
         return _buildEmployeeRow(
           empCode: header['empCode'] ?? '',
@@ -670,71 +793,86 @@ class _CheckinReportScreen extends State<CheckinReportScreen> {
 
   Widget _buildPinnedEmployeeHeader(Map<String, dynamic> emp) {
     final header = _buildEmployeeHeaderData(emp);
-    return Material(
-      color: const Color.fromARGB(255, 255, 252, 252),
-      elevation: 4,
-      child: InkWell(
-        onTap: () {
-          setState(() => _expandedEmpCode = null);
-        },
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Row(
-            children: [
-              const Icon(
-                Icons.keyboard_arrow_down,
-                color: Color.fromARGB(255, 0, 0, 0),
-                size: 20,
+    final name = header['empName'] ?? 'Unknown';
+    final code = header['empCode'] ?? '-';
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [_primary, _primary.withOpacity(0.72)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: _primary.withOpacity(0.16),
+            blurRadius: 12,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.16),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: Colors.white.withOpacity(0.35),
               ),
-              const SizedBox(width: 4),
-              Expanded(
-                flex: 2,
-                child: Text(
-                  header['empCode'] ?? '-',
-                  style: const TextStyle(
-                    color: Color.fromARGB(255, 0, 0, 0),
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
+            ),
+            child: Text(
+              name.isNotEmpty ? name.substring(0, 1).toUpperCase() : '?',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              Expanded(
-                flex: 5,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: Text(
-                    header['empName'] ?? '-',
-                    style: const TextStyle(
-                      color: Color.fromARGB(255, 0, 0, 0),
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-              ),
-              Expanded(
-                flex: 3,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: Text(
-                    header['dateRange'] ?? '-',
-                    style: const TextStyle(
-                      color: Color.fromARGB(255, 0, 0, 0),
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                const SizedBox(height: 4),
+                Text(
+                  code,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.78),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
+          IconButton(
+            tooltip: 'Close details',
+            onPressed: () => setState(() => _expandedEmpCode = null),
+            icon: const Icon(
+              Icons.close_rounded,
+              color: Colors.white,
+              size: 21,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -746,74 +884,129 @@ class _CheckinReportScreen extends State<CheckinReportScreen> {
     required bool isExpanded,
     required VoidCallback onTap,
   }) {
+    final initials = empName.trim().isNotEmpty
+        ? empName.trim().substring(0, 1).toUpperCase()
+        : '?';
+
     return Material(
-      color: const Color.fromARGB(255, 249, 252, 255),
+      color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        borderRadius: BorderRadius.circular(16),
+        child: Ink(
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(
-                color: const Color.fromARGB(255, 249, 252, 255)!
-                    .withOpacity(0.4),
-                width: 1,
-              ),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isExpanded ? Colors.blue.shade200 : _border,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.035),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
           child: Row(
             children: [
-              Icon(
-                isExpanded
-                    ? Icons.keyboard_arrow_down
-                    : Icons.keyboard_arrow_right,
-                color: Colors.white,
-                size: 20,
-              ),
-              const SizedBox(width: 4),
-              Expanded(
-                flex: 2,
+              Container(
+                width: 46,
+                height: 46,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [_primary, _primary.withOpacity(0.72)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(13),
+                ),
                 child: Text(
-                  empCode.isNotEmpty ? empCode : '-',
+                  initials,
                   style: const TextStyle(
-                    color: Color.fromARGB(255, 1, 1, 1),
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              Expanded(
-                flex: 5,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: Text(
-                    empName.isNotEmpty ? empName : '-',
-                    style: const TextStyle(
-                      color: Color.fromARGB(255, 1, 1, 1),
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
+              const SizedBox(width: 12),
               Expanded(
-                flex: 3,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: Text(
-                    dateRange.isNotEmpty ? dateRange : '-',
-                    style: const TextStyle(
-                      color: Color.fromARGB(255, 1, 1, 1),
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      empName.isNotEmpty ? empName : 'Unknown Employee',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: _textPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    const SizedBox(height: 5),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.badge_outlined,
+                          size: 13,
+                          color: _textSecondary,
+                        ),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            empCode.isNotEmpty ? empCode : '-',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: _textSecondary,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              if (dateRange.isNotEmpty)
+                Container(
+                  constraints: const BoxConstraints(maxWidth: 105),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 7,
                   ),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.07),
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  child: Text(
+                    dateRange,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.blue[800],
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.07),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  size: 13,
+                  color: Colors.blue[700],
                 ),
               ),
             ],
@@ -850,113 +1043,166 @@ class _CheckinReportScreen extends State<CheckinReportScreen> {
     final allAbsent =
         dayRecords.every((r) => (r['statusLabel'] ?? '') == 'ABSENT');
     final dayStatus = allAbsent ? 'ABSENT' : 'PRESENT';
+    final statusColor = _statusColor(dayStatus);
 
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+      margin: const EdgeInsets.fromLTRB(12, 6, 12, 8),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.035),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: Colors.grey[100],
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(8),
-                topRight: Radius.circular(8),
-              ),
-            ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 13, 14, 11),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  child: Icon(
+                    Icons.calendar_today_rounded,
+                    size: 16,
+                    color: Colors.blue[700],
+                  ),
+                ),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     dateLabel,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: _textPrimary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  dayStatus,
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
-                    color: _statusColor(dayStatus),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: statusColor.withOpacity(0.09),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        allAbsent
+                            ? Icons.cancel_outlined
+                            : Icons.check_circle_outline_rounded,
+                        size: 13,
+                        color: statusColor,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        dayStatus,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 10,
+                          color: statusColor,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            physics: const ClampingScrollPhysics(),
-            child: SizedBox(
-              width: _tableTotalWidth,
-              child: Column(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    color: Colors.blue[50],
-                    child: Row(
-                      children: [
-                        _tableHeaderCell('Check In', width: _colCheckInWidth),
-                        _tableHeaderCell('Check Out',
-                            width: _colCheckOutWidth),
-                        _tableHeaderCell('Source', width: _colSourceWidth),
-                        _tableHeaderCell('Location',
-                            width: _colLocationWidth),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  ...dayRecords.asMap().entries.map((e) {
-                    final idx = e.key;
-                    final r = e.value;
-                    return Container(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      decoration: BoxDecoration(
-                        color:
-                            idx.isEven ? Colors.white : Colors.grey[50],
-                        border: Border(
-                          bottom: BorderSide(
-                            color: Colors.grey.shade200,
-                            width: 1,
-                          ),
-                        ),
-                      ),
+          Divider(height: 1, color: _border),
+          ClipRRect(
+            borderRadius: const BorderRadius.only(
+              bottomLeft: Radius.circular(16),
+              bottomRight: Radius.circular(16),
+            ),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              physics: const ClampingScrollPhysics(),
+              child: SizedBox(
+                width: _tableTotalWidth,
+                child: Column(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(vertical: 9),
+                      color: _pageBackground,
                       child: Row(
                         children: [
-                          _tableCell(
-                            (r['checkInTime'] ?? '').toString(),
+                          _tableHeaderCell(
+                            'Check In',
                             width: _colCheckInWidth,
                           ),
-                          _tableCell(
-                            (r['checkOutTime'] ?? '').toString(),
+                          _tableHeaderCell(
+                            'Check Out',
                             width: _colCheckOutWidth,
                           ),
-                          _tableCell(
-                            (r['source'] ?? '').toString(),
+                          _tableHeaderCell(
+                            'Source',
                             width: _colSourceWidth,
                           ),
-                          _tableCell(
-                            (r['location'] ?? '').toString(),
+                          _tableHeaderCell(
+                            'Location',
                             width: _colLocationWidth,
                           ),
                         ],
                       ),
-                    );
-                  }),
-                ],
+                    ),
+                    ...dayRecords.asMap().entries.map((e) {
+                      final idx = e.key;
+                      final r = e.value;
+                      final status = r['statusLabel']?.toString() ?? '';
+                      return Container(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        decoration: BoxDecoration(
+                          color: idx.isEven ? Colors.white : _pageBackground,
+                          border: Border(
+                            bottom: BorderSide(
+                              color: _border,
+                              width: 1,
+                            ),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            _tableCell(
+                              (r['checkInTime'] ?? '').toString(),
+                              width: _colCheckInWidth,
+                            ),
+                            _tableCell(
+                              (r['checkOutTime'] ?? '').toString(),
+                              width: _colCheckOutWidth,
+                            ),
+                            _tableCell(
+                              (r['source'] ?? '').toString(),
+                              width: _colSourceWidth,
+                            ),
+                            _tableCell(
+                              (r['location'] ?? '').toString(),
+                              width: _colLocationWidth,
+                              align: TextAlign.left,
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                  ],
+                ),
               ),
             ),
           ),
@@ -982,7 +1228,11 @@ class _CheckinReportScreen extends State<CheckinReportScreen> {
     );
   }
 
-  Widget _tableCell(String value, {required double width}) {
+  Widget _tableCell(
+    String value, {
+    required double width,
+    TextAlign align = TextAlign.center,
+  }) {
     return SizedBox(
       width: width,
       child: Padding(
@@ -993,7 +1243,7 @@ class _CheckinReportScreen extends State<CheckinReportScreen> {
             fontSize: 12,
             color: Colors.black87,
           ),
-          textAlign: TextAlign.center,
+          textAlign: align,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           softWrap: false,
@@ -1004,21 +1254,15 @@ class _CheckinReportScreen extends State<CheckinReportScreen> {
 
   Widget _buildFilterChip(String label, IconData icon) {
     final isSelected = _selectedFilter == label;
-    return FilterChip(
-      label: Row(
-        children: [
-          Icon(icon,
-              size: 16, color: isSelected ? Colors.white : Colors.blue[700]),
-          const SizedBox(width: 4, height: 28),
-          Text(label),
-        ],
-      ),
-      selected: isSelected,
-      onSelected: (selected) {
-        if (selected) {
-          setState(() {
-            _selectedFilter = label;
-          });
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          if (_selectedFilter == label) return;
+
+          setState(() => _selectedFilter = label);
+
           if (label == 'Today') {
             _loadData();
           } else if (label == 'Date Range' &&
@@ -1026,15 +1270,46 @@ class _CheckinReportScreen extends State<CheckinReportScreen> {
               _endDate != null) {
             _loadData();
           }
-        }
-      },
-      selectedColor: Colors.blue[700],
-      checkmarkColor: Colors.white,
-      backgroundColor: Colors.white,
-      labelStyle: TextStyle(
-        color: isSelected ? Colors.white : Colors.black87,
-        fontSize: 13,
+        },
+        borderRadius: BorderRadius.circular(11),
+        child: Ink(
+          height: 40,
+          decoration: BoxDecoration(
+            gradient: isSelected
+                ? LinearGradient(
+                    colors: [_primary, _primary.withOpacity(0.72)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  )
+                : null,
+            color: isSelected ? null : _pageBackground,
+            borderRadius: BorderRadius.circular(11),
+            border: Border.all(
+              color: isSelected ? Colors.transparent : _border,
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 17,
+                color: isSelected ? Colors.white : Colors.blue[700],
+              ),
+              const SizedBox(width: 7),
+              Text(
+                label,
+                style: TextStyle(
+                  color: isSelected ? Colors.white : _textPrimary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
+
 }

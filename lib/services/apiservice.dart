@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:attendance_app/main.dart';
+import 'package:attendance_app/models/AssignedTaskModel.dart';
 import 'package:attendance_app/models/AttendanceRecord.dart';
 import 'package:attendance_app/models/HolidaysModel.dart';
 import 'package:attendance_app/models/Priority.dart';
@@ -20,12 +21,15 @@ import 'package:attendance_app/models/overtimeresponse.dart';
 import 'package:attendance_app/models/pendingTasks.dart';
 import 'package:attendance_app/models/prevDateData.dart';
 import 'package:attendance_app/models/standardHourGroup.dart';
+import 'package:attendance_app/models/work_models.dart';
 import 'package:attendance_app/services/ApiClient.dart';
 import 'package:attendance_app/services/DeviceInfoProvider.dart';
+import 'package:attendance_app/services/StandardHourGroup.dart' hide StandardHourGroup;
 import 'package:attendance_app/services/leaverequestmodel.dart';
 import 'package:attendance_app/services/taskmodel.dart';
 import 'package:attendance_app/models/designation.dart';
 import 'package:attendance_app/models/leave_type.dart';
+import 'package:attendance_app/services/work_service.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -385,10 +389,6 @@ static Future<Map<String, dynamic>> addOvertime({
   }
 
   static Future<List<Holiday>> getHolidays() async {
-    // final response = await http.get(
-    //   Uri.parse('$API_BASE_URL/Holiday/GetHolidays'),
-    //   headers: {"Content-Type": "application/json"},
-    // );
 
     final response = await ApiClient().dio.get('Holiday/GetHolidays');
 
@@ -458,7 +458,7 @@ static Future<Map<String, dynamic>> addOvertime({
 
       if (response.statusCode == 200) {
         final jsonData = response.data;
-
+        await  getEmployeeById();
         return PreviousDateData.fromJson(jsonData);
         //  if (jsonData.TaskList is List) {
         //   return jsonData
@@ -753,6 +753,7 @@ static Future<Map<String, dynamic>> addOvertime({
       final response = await ApiClient().dio.post(
         'employee/requesttoregisteruserdevice',
         data: {
+          'EmployeeId': ApiService.empGuid,
           'DeviceHash': hash,
           'DeviceManufacturer': deviceInfo.manufacturer,
           'DeviceModel': deviceInfo.model,
@@ -1831,30 +1832,45 @@ static Future<Map<String, dynamic>> login(
     }
   }
 
-  static Future<List<TaskModel>> getActiveTasks(String employeeId) async {
-    try {
-      // final response = await http
-      //     .get(
-      //       Uri.parse('$API_BASE_URL/task/employee/$employeeId/active'),
-      //       headers: getHeaders(),
-      //     )
-      //     .timeout(Duration(seconds: 10));
+  // static Future<List<TaskModel>> getActiveTasks(String employeeId) async {
+  //   try {
+  //     // final response = await http
+  //     //     .get(
+  //     //       Uri.parse('$API_BASE_URL/task/employee/$employeeId/active'),
+  //     //       headers: getHeaders(),
+  //     //     )
+  //     //     .timeout(Duration(seconds: 10));
 
-      final response = await ApiClient().dio.get(
-        'task/employee/$employeeId/active',
-        options: Options(receiveTimeout: Duration(seconds: 10)),
-      );
+  //     final response = await ApiClient().dio.get(
+  //       'task/employee/$employeeId/active',
+  //       options: Options(receiveTimeout: Duration(seconds: 10)),
+  //     );
 
-      if (response.statusCode == 200) {
-        final List<dynamic> data = response.data;
-        return data.map((json) => TaskModel.fromJson(json)).toList();
-      }
+  //     if (response.statusCode == 200) {
+  //       final List<dynamic> data = response.data;
+  //       return data.map((json) => TaskModel.fromJson(json)).toList();
+  //     }
 
-      return [];
-    } catch (e) {
-      print('Get tasks error: $e');
-      return [];
+  //     return [];
+  //   } catch (e) {
+  //     print('Get tasks error: $e');
+  //     return [];
+  //   }
+  // }
+
+  static Future<List<AssignedTaskModel>> getAssignedTasks(String employeeId) async {
+    final response = await ApiClient().dio.get(
+      'project/getEmployeeTaskById',
+      queryParameters: {'employeeId': employeeId},
+      options: Options(receiveTimeout: const Duration(seconds: 10)),
+    );
+    if (response.statusCode == 200) {
+      final List<dynamic> data = response.data;
+      return data
+          .map((j) => AssignedTaskModel.fromJson(j as Map<String, dynamic>))
+          .toList();
     }
+    throw Exception('Server returned ${response.statusCode}');
   }
 
   // Start Task
@@ -2095,14 +2111,6 @@ static Future<Map<String, dynamic>> login(
 
   static Future<bool> deleteTask(String taskId, String leadCode) async {
     try {
-      // final response = await http
-      //     .patch(
-      //       Uri.parse('$API_BASE_URL/task/delete'),
-      //       headers: getHeaders(),
-      //       body: jsonEncode({'taskId': taskId, 'leadCode': leadCode}),
-      //     )
-      //     .timeout(Duration(seconds: 15));
-
       final response = await ApiClient().dio.patch(
         'task/delete',
         data: {'taskId': taskId, 'leadCode': leadCode},
@@ -2127,14 +2135,6 @@ static Future<Map<String, dynamic>> login(
     String managerId,
   ) async {
     try {
-      print('Fetching pending approvals for manager: $managerId');
-      // final response = await http
-      //     .get(
-      //       Uri.parse('$API_BASE_URL/leave/pending-approvals/$managerId'),
-      //       headers: getHeaders(),
-      //     )
-      //     .timeout(Duration(seconds: 10));
-
       final response = await ApiClient().dio.get(
         'leave/pending-approvals/$managerId',
         options: Options(receiveTimeout: const Duration(seconds: 10)),
@@ -2274,16 +2274,7 @@ static Future<Map<String, dynamic>> login(
   // NEW: Approve Leave Request
   static Future<Map<String, dynamic>> approveLeave(int leaveId) async {
     try {
-      print(' Approving leave: $leaveId');
-      // final approverId = ApiService._employeeId;
-      final approverId = ApiService.currentEmployee?.employeeId;
-      // final response = await http
-      //     .post(
-      //       Uri.parse('$API_BASE_URL/leave/$leaveId/approve'),
-      //       headers: getHeaders(),
-      //       body: jsonEncode({"approverId": approverId}),
-      //     )
-      //     .timeout(Duration(seconds: 10));
+      final approverId = ApiService.empGuid;
 
       final response = await ApiClient().dio.post(
         'leave/$leaveId/approve',
@@ -2311,17 +2302,7 @@ static Future<Map<String, dynamic>> login(
   // Cancel Leave Request
   static Future<Map<String, dynamic>> approveCancelRequest(String id) async {
     try {
-      print(' Approving leave: $id');
-      // final approverId = ApiService._employeeId;
-      final approverId = ApiService.currentEmployee?.employeeId;
-      // final response = await http
-      //     .post(
-      //       Uri.parse(
-      //         '$API_BASE_URL/leave/$id/approvecancelRequest?approverId=$approverId',
-      //       ),
-      //       headers: getHeaders(),
-      //     )
-      //     .timeout(Duration(seconds: 15));
+      final approverId = ApiService.empGuid;
 
       final response = await ApiClient().dio.post(
         'leave/$id/approvecancelRequest?approverId=$approverId',
@@ -2350,17 +2331,8 @@ static Future<Map<String, dynamic>> login(
     int leaveId,
     String reason,
   ) async {
-    // final approverId = ApiService._employeeId;
-    final approverId = ApiService.currentEmployee?.employeeId;
+    final approverId = ApiService.empGuid;
     try {
-      print('Rejecting leave: $leaveId');
-      // final response = await http
-      //     .post(
-      //       Uri.parse('$API_BASE_URL/leave/$leaveId/reject'),
-      //       headers: getHeaders(),
-      //       body: jsonEncode({'approverId': approverId, 'reason': reason}),
-      //     )
-      //     .timeout(Duration(seconds: 10));
       final response = await ApiClient().dio.post(
         'leave/$leaveId/reject',
         data: {'approverId': approverId, 'reason': reason},
@@ -2388,25 +2360,13 @@ static Future<Map<String, dynamic>> login(
     String leaveId,
     String reason,
   ) async {
-    // final approverId = ApiService._employeeId;
-    final approverId = ApiService.currentEmployee?.employeeId;
+    final approverId = ApiService.empGuid;
     try {
-      print('Rejecting leave: $leaveId');
-      // final response = await http
-      //     .post(
-      //       Uri.parse('$API_BASE_URL/leave/$leaveId/rejectCancelLeave'),
-      //       headers: getHeaders(),
-      //       body: jsonEncode({'approverId': approverId, 'reason': reason}),
-      //     )
-      //     .timeout(Duration(seconds: 10));
-
       final response = await ApiClient().dio.post(
         'leave/$leaveId/rejectCancelLeave',
         data: {'approverId': approverId, 'reason': reason},
         options: Options(receiveTimeout: const Duration(seconds: 10)),
       );
-
-      print('📡 Reject leave response: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         return response.data;
@@ -2426,10 +2386,6 @@ static Future<Map<String, dynamic>> login(
   // NEW: Get Clients
   static Future<List<dynamic>> getClients() async {
     try {
-      // final response = await http
-      //     .get(Uri.parse('$API_BASE_URL/entity/all'), headers: getHeaders())
-      //     .timeout(Duration(seconds: 30));
-
       final response = await ApiClient().dio.get(
         'entity/all',
         options: Options(receiveTimeout: const Duration(seconds: 30)),
@@ -2449,9 +2405,6 @@ static Future<Map<String, dynamic>> login(
 
   static Future<List<dynamic>> getDevices() async {
     try {
-      // final response = await http
-      //     .get(Uri.parse('$API_BASE_URL/device'), headers: getHeaders())
-      //     .timeout(Duration(seconds: 30));
       final response = await ApiClient().dio.get(
         'device',
         options: Options(receiveTimeout: const Duration(seconds: 30)),
@@ -2465,6 +2418,102 @@ static Future<Map<String, dynamic>> login(
       print(' Get Devices error: $e');
       return [];
     }
+  }
+
+  // Get Standard Hour List
+  static Future<List<dynamic>> getStandardHourList() async {
+    try {
+      final response = await ApiClient().dio.get(
+        'standardHour/getAllStandardHourGroup',
+        options: Options(receiveTimeout: const Duration(seconds: 30)),
+      );
+      if(response.statusCode == 200) {
+        return response.data as List;
+      } else {
+        return [];
+      }
+    } catch (e) {
+      return [];
+    }
+  }
+
+  // Add Standard Hour Group
+  static Future<Map<String, dynamic>> addStandardHour({
+    required String title,
+    required List<StandardHourRequest> hourList,
+  }) async {
+    try {
+      final response = await ApiClient().dio.post(
+        'standardHour/addStandardHour',
+        data: {
+          'code': 0,
+          'title': title,
+          'hourList': hourList.map((e) => e.toJson()).toList(),
+        },
+        options: Options(
+          receiveTimeout: const Duration(seconds: 30),
+        ),
+      );
+
+      if (response.statusCode == 200) {
+        return Map<String, dynamic>.from(response.data);
+      }
+
+      return {
+        'success': false,
+        'error': response.data['message'] ??
+            'Failed to add the Standard Hour Group.'
+      };
+    } catch (e) {
+      print('Add Standard Hour Error: $e');
+      return {
+        'success': false,
+        'error': e.toString(),
+      };
+    }
+  }
+
+  // Update Standard Hour List
+  static Future<Map<String, dynamic>> editStandardHour({
+    required int code,
+    required String title,
+    required List<StandardHourRequest> hourList,
+  }) async {
+    try {
+      final response = await ApiClient().dio.post(
+        'standardHour/editStandardHour',
+        data: {
+          'code': code,
+          'title': title,
+          'hourList': hourList.map((e) => e.toJson()).toList(),
+        },
+        options: Options(
+          receiveTimeout: const Duration(seconds: 30),
+        ),
+      );
+
+      if (response.statusCode == 200) {
+        return Map<String, dynamic>.from(response.data);
+      }
+
+      return {
+        'success': false,
+        'error': response.data['message'] ??
+            'Failed to edit the Standard Hour Group.'
+      };
+    } catch (e) {
+      print('Edit Standard Hour Error: $e');
+
+      return {
+        'success': false,
+        'error': e.toString(),
+      };
+    }
+  }
+
+  // Delete Standard Hour List
+  static Future<bool> deleteStandardHourGroup(int groupCode) async {
+    return false;
   }
 
   // Profile Picture Approval
@@ -2498,38 +2547,6 @@ static Future<Map<String, dynamic>> login(
     }
   }
 
-  // Profile Pic Approval
-  // static Future<Map<String, dynamic>> approveProfilePic(
-  //   String approveId,
-  //   EmployeeProfileModel model,
-  // ) async {
-  //   try {
-  //     print(' Approve Profile: $approveId');
-
-  //     final response = await http
-  //         .post(
-  //           Uri.parse(
-  //             '$API_BASE_URL/RegistrationRequest/$approveId/ApproveRequest',
-  //           ),
-  //           headers: getHeaders(),
-  //           body: jsonEncode(model.toJson()),
-  //         )
-  //         .timeout(const Duration(seconds: 20));
-
-  //     if (response.statusCode == 200) {
-  //       return jsonDecode(response.body);
-  //     } else {
-  //       return {
-  //         'success': false,
-  //         'message': response.body,
-  //       };
-  //     }
-  //   } catch (e) {
-  //     print('Approve Profile error: $e');
-  //     return {'success': false, 'error': e.toString()};
-  //   }
-  // }
-
   static Future<Map<String, dynamic>> deleteDevice(String deviceId) async {
     // final url = '$API_BASE_URL/device/Delete?DeviceId=$deviceId';
     // final resp = await http.delete(Uri.parse(url), headers: getHeaders());
@@ -2544,6 +2561,40 @@ static Future<Map<String, dynamic>> login(
       return {'success': false, 'error': 'Failed to delete device'};
     }
   }
+
+  static Future<List<TeamMember>> getManagerTeamMembers(String managerId) async {
+    try {
+      // Add cache-busting timestamp
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      
+      final response = await ApiClient().dio.get(
+        'employee/$managerId/managerTeam',
+        options: Options(
+          receiveTimeout: const Duration(seconds: 10),
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+          },
+        ),
+        queryParameters: {
+          '_t': timestamp, // This prevents caching
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final List<Map<String, dynamic>> data = List<Map<String, dynamic>>.from(
+          response.data,
+        );
+        return data.map(TeamMember.fromJson).toList();
+      }
+      return [];
+    } catch (e) {
+      print('Get team members error: $e');
+      return [];
+    }
+  }
+
 
   static Future<List<TeamMember>> getTeamMembers(String managerId) async {
     try {
@@ -2741,8 +2792,24 @@ static Future<Map<String, dynamic>> login(
     }
   }
 
-  // StandardHourGroup
-  static Future<Map<String, dynamic>> addEmp({
+// Add Employee
+static String _extractError(dynamic data, String fallback) {
+  if (data is Map) {
+    if (data['error'] != null) return data['error'].toString();
+    if (data['message'] != null) return data['message'].toString();
+    if (data['errors'] is Map) {
+      return (data['errors'] as Map)
+          .values
+          .expand((v) => v is List ? v : [v])
+          .join('\n');
+    }
+    if (data['title'] != null) return data['title'].toString();
+  }
+  if (data is String && data.trim().isNotEmpty) return data;
+  return fallback;
+}
+
+static Future<Map<String, dynamic>> addEmp({
   required String managerId,
   required String zkUserId,
   required String firstName,
@@ -2751,14 +2818,14 @@ static Future<Map<String, dynamic>> login(
   required String phone,
   required String companyCode,
   required String department,
-  required int designation,          // -> designationCode (int)
-  String? designationName,           // -> designation (string)
+  required int designation,
+  String? designationName,
   required bool isActive,
   required DateTime joinDate,
   required String role,
-  required bool userStatus,          // -> isAppUser
-  required String? roleId,
-  required int standardHourCode,     // -> standardHour
+  required bool userStatus,
+  required List<String>? roleId,
+  required int standardHourCode,
 }) async {
   try {
     final response = await ApiClient().dio.post(
@@ -2772,47 +2839,52 @@ static Future<Map<String, dynamic>> login(
         'email': email,
         'phone': phone,
         'department': department,
-        'designationCode': designation,     
-        'designation': designationName,     
-        'standardHour': standardHourCode,   
+        'designationCode': designation,
+        'designation': designationName,
+        'standardHour': standardHourCode,
         'isAppUser': userStatus,
         'isActive': isActive,
         'joinDate': joinDate.toIso8601String(),
         'role': role,
-        'roleId': roleId?.toString(),
+        'roleId': userStatus ? (roleId ?? <String>[]) : <String>[],
       },
       options: Options(receiveTimeout: const Duration(seconds: 30)),
     );
 
+    final data = response.data;
+
     if (response.statusCode == 200) {
-      return response.data;
-    } else {
-      final error = response.data;
-      return {
-        'success': false,
-        'error': error['error'] ??
-            'Failed to create the Employee. Please try again',
-      };
+      if (data is Map<String, dynamic>) {
+        return {'success': data['success'] ?? true, ...data};
+      }
+      return {'success': true, 'message': data?.toString() ?? ''};
     }
-  } on DioException catch (e) {
-    // Surfaces the real ValidationProblemDetails body instead of a generic message
-    print('Employee Setup DioException: ${e.response?.statusCode} ${e.response?.data}');
+
     return {
       'success': false,
-      'error': e.response?.data?['error'] ??
-          e.response?.data?.toString() ??
-          'Connection error: ${e.message}',
+      'error': _extractError(
+          data, 'Failed to create the Employee. Please try again'),
+    };
+  } on DioException catch (e) {
+    print('Employee Setup DioException: '
+        '${e.response?.statusCode} ${e.response?.data}');
+    return {
+      'success': false,
+      'error': _extractError(
+          e.response?.data, 'Connection error: ${e.message}'),
     };
   } catch (e) {
     print('Employee Setup error: $e');
     return {'success': false, 'error': 'Connection error: $e'};
   }
 }
+
   // Edit Employee
   static Future<Map<String, dynamic>> editEmp({
-    required String empCode,
+    // required String empCode,
     required String managerId,
     required String newEmpId,
+    // required String empcode,
     required String zkUserId,
     required String firstName,
     required String lastName,
@@ -2825,40 +2897,16 @@ static Future<Map<String, dynamic>> login(
     required DateTime joinDate,
     required String role,
     required bool userStatus,
-    required String? roleId,
+    required List<String>? roleId,
     required int standardHourCode,
   }) async {
     try {
-      // final url = '$API_BASE_URL/employee/editEmployeeAndUser';
-      // final resp = await http
-      //     .post(
-      //       Uri.parse(url),
-      //       headers: getHeaders(),
-      //       body: jsonEncode({
-      //         'managerId': managerId,
-      //         'employeeId': newEmpId,
-      //         'zkUserId': zkUserId,
-      //         'firstName': firstName,
-      //         'lastName': lastName,
-      //         'companyCode': companyCode,
-      //         'email': email,
-      //         'phone': phone,
-      //         'departmentCode': department,
-      //         'designationCode': designation,
-      //         'IsAppUser': userStatus,
-      //         'isActive': isActive,
-      //         'joinDate': joinDate.toIso8601String(),
-      //         'roleId': roleId,
-      //         'StandardHour': standardHourCode,
-      //       }),
-      //     )
-      //     .timeout(Duration(seconds: 30));
-
       final response = await ApiClient().dio.post(
         'employee/editEmployeeAndUser',
         data: {
           'managerId': managerId,
           'employeeId': newEmpId,
+          // 'empcode': empcode,
           'zkUserId': zkUserId,
           'firstName': firstName,
           'lastName': lastName,
@@ -2893,12 +2941,8 @@ static Future<Map<String, dynamic>> login(
   }
 
   static Future<List<StandardHourGroup>> getStandardHours() async {
-    // final resp = await http.get(
-    //   Uri.parse('$API_BASE_URL/identity/getStandardGroup'),
-    //   headers: getHeaders(),
-    // );
-
-    final response = await ApiClient().dio.get('identity/getStandardGroup');
+    
+    final response = await ApiClient().dio.get('standardHour/getStandardGroup');
 
     if (response.statusCode == 200) {
       final List data = response.data;
@@ -3021,7 +3065,97 @@ static Future<Map<String, dynamic>> login(
       return {'success': false, 'error': 'Connection error: $e'};
     }
   }
-
+ static String _dioError(Object e, String fallback) {
+    if (e is DioException) {
+      final data = e.response?.data;
+      if (data is Map && data['error'] != null) return data['error'].toString();
+      return 'Connection error. Please try again.';
+    }
+    return fallback;
+  }
+ 
+  static Future<List<dynamic>> getClientLocations() async {
+    try {
+      final response = await ApiClient().dio.get(
+        'Entity/location/all',
+        options: Options(receiveTimeout: const Duration(seconds: 30)),
+      );
+ 
+      if (response.statusCode == 200) {
+        return response.data as List;
+      }
+      return [];
+    } catch (e) {
+      print('Get client locations error: $e');
+      return [];
+    }
+  }
+ 
+  static Future<Map<String, dynamic>> addClientLocation(
+    Map<String, dynamic> data,
+  ) async {
+    try {
+      final response = await ApiClient().dio.post(
+        'Entity/location/add',
+        data: data,
+        options: Options(receiveTimeout: const Duration(seconds: 30)),
+      );
+ 
+      if (response.statusCode == 200) {
+        return Map<String, dynamic>.from(response.data);
+      }
+      return {'success': false, 'error': 'Failed to add location'};
+    } catch (e) {
+      print('Add client location error: $e');
+      return {'success': false, 'error': _dioError(e, 'Failed to add location')};
+    }
+  }
+ 
+  static Future<Map<String, dynamic>> updateClientLocation(
+    String clientLocationId,
+    Map<String, dynamic> data,
+  ) async {
+    try {
+      final response = await ApiClient().dio.put(
+        'Entity/location/update/$clientLocationId',
+        data: data,
+        options: Options(receiveTimeout: const Duration(seconds: 30)),
+      );
+ 
+      if (response.statusCode == 200) {
+        return Map<String, dynamic>.from(response.data);
+      }
+      return {'success': false, 'error': 'Failed to update location'};
+    } catch (e) {
+      print('Update client location error: $e');
+      return {
+        'success': false,
+        'error': _dioError(e, 'Failed to update location'),
+      };
+    }
+  }
+ 
+  static Future<Map<String, dynamic>> deleteClientLocation(
+    String clientLocationId,
+  ) async {
+    try {
+      final response = await ApiClient().dio.delete(
+        'Entity/location/delete/$clientLocationId',
+      );
+ 
+      if (response.statusCode == 200) {
+        return Map<String, dynamic>.from(response.data);
+      }
+      return {'success': false, 'error': 'Failed to delete location'};
+    } catch (e) {
+      print('Delete client location error: $e');
+      return {
+        'success': false,
+        'error': _dioError(e, 'Failed to delete location'),
+      };
+    }
+  }
+ 
   static Future<Map<String, dynamic>> addDevice({
     required String deviceName,
     required String deviceIpAddress,
@@ -3031,6 +3165,7 @@ static Future<Map<String, dynamic>> login(
     required bool isDeviceActive,
     required bool CanReadLogs,
     required String deviceCompanyCode,
+    required String deviceCompanyId,
   }) async {
     try {
       // final url = '$API_BASE_URL/device/AddNew';
@@ -3062,6 +3197,7 @@ static Future<Map<String, dynamic>> login(
           'isActive': isDeviceActive,
           'CanReadLogs': CanReadLogs,
           'companyCode': deviceCompanyCode,
+          'companyId': deviceCompanyId
         },
         options: Options(receiveTimeout: Duration(seconds: 30)),
       );
@@ -3093,6 +3229,7 @@ static Future<Map<String, dynamic>> login(
     required bool isDeviceActive,
     required bool CanReadLogs,
     required String deviceCompanyCode,
+    required String deviceCompanyId,
     String? deviceStatus,
   }) async {
     try {
@@ -3130,6 +3267,7 @@ static Future<Map<String, dynamic>> login(
           'isActive': isDeviceActive,
           'CanReadLogs': CanReadLogs,
           'companyCode': deviceCompanyCode,
+          'companyId': deviceCompanyId,
         },
         options: Options(receiveTimeout: Duration(seconds: 30)),
       );
@@ -3247,7 +3385,7 @@ static Future<Map<String, dynamic>> login(
   }
 
   static Future<void> handleDeviceRegistrationRequest(
-    String requestId,
+    String? requestId,
     bool approve, {
     String? reason,
   }) async {
@@ -3437,7 +3575,17 @@ static Future<Map<String, dynamic>> login(
       return {};
     }
   }
- 
+  static String resolveFileUrl(String path) {
+    if (path.isEmpty) return '';
+    if (path.startsWith('http://') || path.startsWith('https://')) return path;
+
+    // API_BASE_URL looks like "http://host:port/api" — the uploads folder
+    // is served from the host root, so strip a trailing "/api".
+    final base = API_BASE_URL.replaceFirst(RegExp(r'/api/?$'), '');
+
+    final clean = path.startsWith('/') ? path.substring(1) : path;
+    return '$base/uploads/$clean';
+  }
   static Future<Map<String, dynamic>> createTeamHeadTask({
     required String projectId,
     required String taskTypeId,
@@ -3450,10 +3598,12 @@ static Future<Map<String, dynamic>> login(
     String? remarks,
     required String createdBy,
     required String createdByTeamId,
+    String? clientLocationId,
+    Map<String, List<String>>? assignmentsByTeam,  
   }) async {
     try {
       final response = await ApiClient().dio.post(
-        'teamheadtask',
+        'teamheadtask/createTask',
         data: {
           'projectId': projectId,
           'taskTypeId': taskTypeId,
@@ -3466,6 +3616,11 @@ static Future<Map<String, dynamic>> login(
           'remarks': remarks,
           'createdBy': createdBy,
           'createdByTeamId': createdByTeamId,
+          'clientLocationId': clientLocationId,
+          if (assignmentsByTeam != null)
+      'assignmentsByTeam': assignmentsByTeam.entries
+          .map((e) => {'teamId': e.key, 'employeeIds': e.value})
+          .toList(),
         },
       );
       return response.data;
@@ -3624,7 +3779,12 @@ static Future<Map<String, dynamic>> login(
       data: {'teamMemberId': teamMemberId},
     );
   }
-
+  // static Future<List<ReportingMemberModel>> getReportingMembers(String managerId) async {
+  //   final response = await ApiClient().dio.get('orgstructure/team/$managerId/reportingMembers');
+  //   final List<dynamic> data = response.data['members'];
+  //   print('Reporting Members: ${response}');
+  //   return data.map((e) => ReportingMemberModel.fromJson(e)).toList();
+  // }
   static Future<List<TeamMemberRecord>> getOrgTeamMembers(String teamId) async {
     final response = await ApiClient().dio.get('orgstructure/team/$teamId/members');
     final List<dynamic> data = response.data['members'];
@@ -3658,6 +3818,84 @@ static Future<Map<String, dynamic>> login(
     final List<dynamic> data = response.data['subordinates'];
     return data.map((e) => SubordinateModel.fromJson(e)).toList();
   }
+
+  // Task Work
+  String _base(String id) => 'api/assignments/$id';
+
+  dynamic _unwrap(Response r) {
+    final body = r.data;
+    if (body is Map<String, dynamic> && body.containsKey('data')) return body['data'];
+    return body;
+  }
+
+  Future<T> _call<T>(Future<T> Function() fn) async {
+    try {
+      return await fn();
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      final msg = (data is Map && data['message'] != null)
+          ? data['message'].toString()
+          : (e.type == DioExceptionType.connectionError
+              ? 'No connection to server.'
+              : 'Something went wrong (${e.response?.statusCode ?? 'network'}).');
+      throw WorkException(msg);
+    }
+  }
+
+  /// tab: 'inprogress' | 'completed'
+  Future<List<AssignmentItem>> getMyAssignments(String employeeId, String tab) =>
+    _call(() async {
+      final r = await ApiClient().dio.get(
+        'project/getEmployeeTaskById',
+        queryParameters: {
+          'employeeId': employeeId.toString(),
+          'status': tab,
+        },
+      );
+      return (_unwrap(r) as List)
+          .map((e) => AssignmentItem.fromJson(e as Map<String, dynamic>))
+          .toList();
+    });
+
+  Future<WorkState> getState(String id) => _call(() async {
+        final r = await  ApiClient().dio.get('${_base(id)}/work-state');
+        return WorkState.fromJson(_unwrap(r) as Map<String, dynamic>);
+      });
+
+  Future<void> startSession(String id) =>
+      _call(() =>  ApiClient().dio.post('${_base(id)}/sessions/start'));
+
+  Future<void> stopSession(String id) =>
+      _call(() =>  ApiClient().dio.post('${_base(id)}/sessions/stop'));
+
+  /// [workDate] must be the server-provided WorkState.todayDate (yyyy-MM-dd), not the phone's date.
+  Future<void> saveDailySummary(String id, String workDate, String summary, String remarks) =>
+      _call(() =>  ApiClient().dio.put('${_base(id)}/daily-summary', data: {
+            'workDate': workDate,
+            'summary': summary,
+            'remarks': remarks.isEmpty ? null : remarks,
+          }));
+
+  /// Sends raw GPS + photo. The server calculates the distance and decides the result.
+  Future<void> validateSite(String id, double lat, double lng, File photo) => _call(() async {
+        final form = FormData.fromMap({
+          'latitude': lat,
+          'longitude': lng,
+          'snapshot': await MultipartFile.fromFile(photo.path, filename: 'site.jpg'),
+        });
+        await  ApiClient().dio.post('${_base(id)}/site-validation', data: form);
+      });
+
+  Future<void> complete(String id, String finalSummary, String remarks, File? photo) =>
+      _call(() async {
+        final form = FormData.fromMap({
+          'finalSummary': finalSummary,
+          'remarks': remarks,
+          if (photo != null)
+            'snapshot': await MultipartFile.fromFile(photo.path, filename: 'completion.jpg'),
+        });
+        await  ApiClient().dio.post('${_base(id)}/complete', data: form);
+      });
 }
 
 class TaskSummaryResponse {

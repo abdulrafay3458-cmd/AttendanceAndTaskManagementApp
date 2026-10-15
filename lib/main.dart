@@ -1,6 +1,8 @@
+import 'dart:io';
 import 'dart:ui';
-import 'dart:io' show Platform;
+import 'package:attendance_app/SplashScreen.dart';
 import 'package:attendance_app/adminscreen.dart';
+import 'package:attendance_app/attendanceHistory.dart';
 import 'package:attendance_app/dashboard.dart';
 import 'package:attendance_app/firebase_options.dart';
 import 'package:attendance_app/leavescreen.dart';
@@ -8,11 +10,16 @@ import 'package:attendance_app/login.dart';
 import 'package:attendance_app/managerpanel.dart';
 import 'package:attendance_app/models/AttendanceRecord.dart';
 import 'package:attendance_app/models/employee.dart';
+import 'package:attendance_app/my_tasks_screen.dart';
 import 'package:attendance_app/profile.dart';
 import 'package:attendance_app/reportscreen.dart';
+import 'package:attendance_app/services/ApiClient.dart';
 import 'package:attendance_app/services/apiservice.dart';
+import 'package:attendance_app/services/work_service.dart';
+import 'package:attendance_app/site_validation_bus.dart';
 import 'package:attendance_app/taskscreen.dart';
 import 'package:attendance_app/widgets/SizeConfig.dart';
+import 'package:attendance_app/widgets/app_date.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
@@ -33,16 +40,16 @@ import 'package:http/http.dart' as http;
 // ============================================
 const String API_BASE_URL =
     // 'http://10.0.2.2:5238/api'; //emmulator ip
-    // 'http://103.104.192.247:1192' live ip
-    'http://103.104.192.247:1122/api/'; // Android Emulator localhost
-const String SIGNALR_URL = 'http://103.104.192.247:1122/attendanceHub';
+    // 'http://103.104.192.247:1122/api/' live;
+    'http://192.168.221.122:5238/api/'; // Android Emulator localhost
+const String SIGNALR_URL = 'http://192.168.221.122:5238/attendanceHub';
 //     'http://10.178.2.142:5238/api'; // Android Emulator localhost
 // const String SIGNALR_URL = 'http://10.178.2.142:5238/attendanceHub';
 //     'http://localhost:5238/api'; // Android Emulator localhost
 // const String SIGNALR_URL = 'http://localhost:5238/attendanceHub';
 
 // Use these for real device on same WiFi:
-// const String API_BASE_URL = 'http://192.168.1.100:5000/api';  // Change to your PC IP
+// const String API_BASE_URxL = 'http://192.168.1.100:5000/api';  // Change to your PC IP
 // const String SIGNALR_URL = 'http://192.168.1.100:5000/attendanceHub';
 
 @pragma('vm:entry-point')
@@ -75,15 +82,8 @@ Future<void> setupLocalNotifications() async {
   const AndroidInitializationSettings androidInit =
       AndroidInitializationSettings('@mipmap/ic_launcher');
 
-const DarwinInitializationSettings iosInit = DarwinInitializationSettings(
-    requestAlertPermission: false,
-    requestBadgePermission: false,
-    requestSoundPermission: false,
-  );
-
   const InitializationSettings initSettings = InitializationSettings(
     android: androidInit,
-    iOS: iosInit,
   );
 
   await localNotifications.initialize(initSettings);
@@ -106,98 +106,19 @@ const DarwinInitializationSettings iosInit = DarwinInitializationSettings(
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Show build errors on screen instead of a blank white screen (release builds)
-  ErrorWidget.builder = (FlutterErrorDetails details) {
-    return Material(
-      color: Colors.white,
-      child: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Text(
-            'UI error:\n${details.exceptionAsString()}',
-            style: const TextStyle(color: Colors.red, fontSize: 13),
-          ),
-        ),
-      ),
-    );
-  };
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
-  final List<String> startupErrors = [];
+  // Initialize API Service
+  await ApiService.init();
 
-  Future<T?> safe<T>(String step, Future<T> Function() fn) async {
-    try {
-      return await fn();
-    } catch (e) {
-      startupErrors.add('$step failed:\n$e');
-      return null;
-    }
-  }
+  // Initialize cameras
+  final cameras = await availableCameras();
 
-  if (!Platform.isIOS) {
-    // Firebase is skipped on iOS until iOS FirebaseOptions are configured.
-    await safe('Firebase init', () async {
-      await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
-      );
-      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-    });
-  }
+  await setupLocalNotifications();
+  await setupFCM();
 
-  await safe('ApiService.init', () => ApiService.init());
-
-  final List<CameraDescription> cameras =
-      await safe('availableCameras', () => availableCameras()) ??
-          <CameraDescription>[];
-
-  await safe('Local notifications setup', () => setupLocalNotifications());
-
-  if (!Platform.isIOS) {
-    await safe('FCM setup', () => setupFCM());
-  }
-
-  if (startupErrors.isEmpty) {
-    runApp(AttendanceApp(cameras: cameras));
-  } else {
-    runApp(
-      MaterialApp(
-        debugShowCheckedModeBanner: false,
-        home: Scaffold(
-          backgroundColor: Colors.white,
-          body: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Startup problems (screenshot this)',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 12),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      child: Text(
-                        startupErrors.join('\n\n'),
-                        style: const TextStyle(color: Colors.red),
-                      ),
-                    ),
-                  ),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () =>
-                          runApp(AttendanceApp(cameras: cameras)),
-                      child: const Text('Continue anyway'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  runApp(AttendanceApp(cameras: cameras));
 }
 
 /// ===============================
@@ -211,6 +132,7 @@ Future<void> setupFCM() async {
 
   // 🔹 Notification tap (app in background)
   FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+    SiteValidationBus.instance.emit(message.data);
     print("📲 Notification clicked");
   });
 
@@ -220,6 +142,7 @@ Future<void> setupFCM() async {
       print("🔥 MESSAGE RECEIVED");
       print(message.data);
       print(message.notification?.title);
+       SiteValidationBus.instance.emit(message.data);
       if (message.notification != null) {
         localNotifications.show(
           message.hashCode,
@@ -314,6 +237,8 @@ class SignalRService {
 }
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+final GlobalKey<State<DashboardScreen>> dashboardKey =
+    GlobalKey<State<DashboardScreen>>();
 
 // ============================================
 // MAIN APP
@@ -336,70 +261,6 @@ class AttendanceApp extends StatelessWidget {
       ),
       navigatorKey: navigatorKey,
       home: SplashScreen(),
-    );
-  }
-}
-
-// ============================================
-// SPLASH SCREEN
-// ============================================
-class SplashScreen extends StatefulWidget {
-  const SplashScreen({super.key});
-
-  @override
-  _SplashScreenState createState() => _SplashScreenState();
-}
-
-class _SplashScreenState extends State<SplashScreen> {
-  @override
-  void initState() {
-    super.initState();
-    _checkLogin();
-  }
-
-  Future<void> _checkLogin() async {
-    await Future.delayed(const Duration(seconds: 2));
-
-    Widget nextScreen = LoginScreen();
-
-    if (ApiService.authToken != null && ApiService.employeeId != null) {
-      final response = await ApiService.getEmployeeById();
-
-      if (response != null) {
-        nextScreen = HomeScreen();
-      }
-    }
-
-    if (!mounted) return;
-
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => nextScreen),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.fingerprint, size: 100, color: Colors.blue[700]),
-            SizedBox(height: 20),
-            Text(
-              'Attendance System',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: Colors.blue[700],
-              ),
-            ),
-            SizedBox(height: 20),
-            CircularProgressIndicator(),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -449,12 +310,10 @@ class _HomeScreenState extends State<HomeScreen> {
         });
         setState(() => _isLoading = false);
         await _showRequestSentDialogBlur();
-       if (!Platform.isIOS) {
-  final token = await FirebaseMessaging.instance.getToken();
-  if (token != null) {
-    await ApiService().sendTokenToBackend(token);
-  }
-}
+        final token = await FirebaseMessaging.instance.getToken();
+        if (token != null) {
+          await ApiService().sendTokenToBackend(token);
+        }
       } else {
         _showError(
           'Failed to send device registration request. Please try again later.',
@@ -609,10 +468,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   List<Widget> get _screens {
     final role = employee?.role.map((r) => r.toLowerCase()).toList() ?? [];
-
+    final workService = WorkService(ApiClient().dio);
+    
     return [
-      DashboardScreen(),
-      TasksScreen(),
+      DashboardScreen(key: dashboardKey),
+      MyTasksScreen(service: workService),
       AttendanceHistoryScreen(),
       LeaveScreen(),
       // Employeereport(),
@@ -824,9 +684,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             Text(notif['message'] ?? ''),
             SizedBox(height: 4),
             Text(
-              DateFormat(
+              AppDate.format(
+                AppDate.tryParseUtc(notif['createdAt']),
                 'MMM dd, yyyy hh:mm a',
-              ).format(DateTime.parse(notif['createdAt'])),
+              ),
               style: TextStyle(fontSize: 11, color: Colors.grey),
             ),
           ],
@@ -913,11 +774,15 @@ class _StopTaskDialogState extends State<StopTaskDialog> {
 class AttendanceActionScreen extends StatefulWidget {
   final bool isCheckOut;
   final VoidCallback onSuccess;
+  final bool captureOnly;
+  final String? title;
 
   const AttendanceActionScreen({
     super.key,
     required this.isCheckOut,
     required this.onSuccess,
+    this.captureOnly = false,
+    this.title,
   });
 
   @override
@@ -963,6 +828,7 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
     super.initState();
     _initializeCamera();
     _getCurrentLocation();
+    if (!widget.captureOnly) _getCurrentLocation();
     _selectRandomChallenge();
   }
 
@@ -971,7 +837,7 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
     final random = Random();
     final challenge = _challenges[random.nextInt(_challenges.length)];
     _currentChallenge = challenge;
-
+  
     switch (challenge) {
       case 'blink':
         _statusMessage = 'Please blink once';
@@ -1033,7 +899,7 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
   Future<void> _processCameraImage(CameraImage image) async {
     if (_isDetecting || _faceCaptured) return;
 
-    final now = DateTime.now();
+    final now = DateTime.now();   // local frame throttle: must not use the server-synced clock
     if (now.difference(_lastDetectionTime).inMilliseconds < 250) return;
     _lastDetectionTime = now;
 
@@ -1403,7 +1269,7 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
       return;
     }
 
-    if (_currentPosition == null) {
+    if (!widget.captureOnly && _currentPosition == null) {
       _showError('Location not available');
       _faceCaptured = false;
       return;
@@ -1415,10 +1281,16 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
       await _cameraController!.stopImageStream();
 
       final image = await _cameraController!.takePicture();
+      if (widget.captureOnly) {
+        if (!mounted) return;
+        setState(() => _isProcessing = false);
+        Navigator.pop(context, File(image.path));
+        return;
+      }
       final imageBytes = await image.readAsBytes();
       final base64Image = base64Encode(imageBytes);
 
-      final employeeId = ApiService.employeeId;
+      final employeeId = ApiService.empGuid;
       if (employeeId == null) {
         _showError('Employee ID not found');
         setState(() => _isProcessing = false);
@@ -1546,7 +1418,7 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        title: Text(widget.isCheckOut ? 'Check Out' : 'Check In'),
+        title: Text(widget.title ?? (widget.isCheckOut ? 'Check Out' : 'Check In')),
         backgroundColor: Colors.black,
       ),
       body: _isCameraInitialized
@@ -1771,275 +1643,6 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-// ============================================
-// ATTENDANCE HISTORY SCREEN
-// ============================================
-class AttendanceHistoryScreen extends StatefulWidget {
-  const AttendanceHistoryScreen({super.key});
-
-  @override
-  _AttendanceHistoryScreenState createState() =>
-      _AttendanceHistoryScreenState();
-}
-
-class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
-  List<AttendanceRecord> _records = [];
-  bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadHistory();
-  }
-
-  String formatHoursToHHMM(String hoursString) {
-    try {
-      final time = double.parse(hoursString);
-      final totalMinutes = (time * 60).round();
-      final hours = totalMinutes ~/ 60;
-      final minutes = totalMinutes % 60;
-      return '${hours}h ${minutes}m';
-    } catch (e) {
-      return '00:00';
-    }
-  }
-
-  Future<void> _loadHistory() async {
-    setState(() => _isLoading = true);
-
-    final employeeId = ApiService.employeeId;
-    if (employeeId != null) {
-      final records = await ApiService.getAttendanceHistory(employeeId);
-      if (!mounted) return;
-      setState(() {
-        _records = records;
-        _isLoading = false;
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'Attendance History',
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: SizeConfig.f(20),
-          ),
-        ),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.blue[700],
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: Icon(Icons.refresh_outlined),
-            onPressed: _loadHistory,
-            tooltip: 'Refresh',
-            iconSize: 22,
-          ),
-        ],
-      ),
-      body: _isLoading
-          ? Center(child: CircularProgressIndicator())
-          : _records.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.inbox, size: 64, color: Colors.grey),
-                  SizedBox(height: 16),
-                  Text(
-                    'No attendance records',
-                    style: TextStyle(fontSize: 16, color: Colors.grey),
-                  ),
-                ],
-              ),
-            )
-          : RefreshIndicator(
-              onRefresh: _loadHistory,
-              child: ListView.builder(
-                padding: EdgeInsets.all(16),
-                itemCount: _records.length,
-                itemBuilder: (context, index) {
-                  final record = _records[index];
-                  return _buildRecordCard(record);
-                },
-              ),
-            ),
-    );
-  }
-
-  Widget _buildRecordCard(AttendanceRecord record) {
-    return Card(
-      margin: EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  DateFormat(
-                    'EEEE, MMM d, yyyy',
-                  ).format(record.attendanceDate!.toLocal()),
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: record.status == 'Present'
-                        ? Colors.green.withOpacity(0.1)
-                        : Colors.orange.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    record.status?.toUpperCase() ?? '',
-                    style: TextStyle(
-                      color: record.status == 'Present'
-                          ? Colors.green
-                          : Colors.orange,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.login, size: 16, color: Colors.green),
-                          SizedBox(width: 4),
-                          Text(
-                            'Check-in:',
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        record.checkInTime != null
-                            ? DateFormat(
-                                'hh:mm a',
-                              ).format(record.checkInTime!.toLocal())
-                            : '--:--',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.logout, size: 16, color: Colors.red),
-                          SizedBox(width: 4),
-                          Text(
-                            'Check-out:',
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        record.checkOutTime != null
-                            ? DateFormat(
-                                'hh:mm a',
-                              ).format(record.checkOutTime!.toLocal())
-                            : '--:--',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            if (record.totalHours != "") ...[
-              Divider(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.access_time, size: 16, color: Colors.blue),
-                      SizedBox(width: 4),
-                      Text(
-                        'Total: ${formatHoursToHHMM(record.totalHours ?? '')}',
-                        style: TextStyle(
-                          color: Colors.blue,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                  if ((record.location ?? '').isNotEmpty)
-                    Row(
-                      children: [
-                        Icon(Icons.location_on, size: 16, color: Colors.grey),
-                        SizedBox(width: 4),
-                        Text(
-                          record.location ?? '',
-                          style: TextStyle(
-                            color: Colors.grey[600],
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                ],
-              ),
-            ],
-            if ((record.checkInSource ?? '').isNotEmpty) ...[
-              SizedBox(height: 8),
-              Row(
-                children: [
-                  Icon(
-                    record.checkInSource == 'zkteco'
-                        ? Icons.fingerprint
-                        : Icons.phone_android,
-                    size: 14,
-                    color: Colors.grey,
-                  ),
-                  SizedBox(width: 4),
-                  Text(
-                    'Source: ${(record.checkInSource?.toLowerCase() == 'zkteco' ? record.deviceName : record.checkInSource ?? 'N/A')}',
-                    style: TextStyle(color: Colors.grey[600], fontSize: 11),
-                  ),
-                ],
-              ),
-            ],
-          ],
-        ),
       ),
     );
   }

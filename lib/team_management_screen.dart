@@ -508,8 +508,8 @@ class _TeamManagementScreenState extends State<TeamManagementScreen>
               const SizedBox(height: 14),
               Row(
                 children: [
-                  _InitialsAvatar(name: team.teamName, size: SizeConfig.f(27), radius: 14),
-                  const SizedBox(width: 12),
+                  _InitialsAvatar(name: team.teamName, size: SizeConfig.f(32), radius: 14),
+                  const SizedBox(width: 30),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -580,9 +580,9 @@ class _TeamManagementScreenState extends State<TeamManagementScreen>
                             shape: const Border(),
                             collapsedShape: const Border(),
                             tilePadding: const EdgeInsets.symmetric(
-                                horizontal: 14, vertical: 2),
+                                horizontal: 11, vertical: 3),
                             leading: _InitialsAvatar(
-                                name: displayName, size: SizeConfig.f(33), radius: 21),
+                                name: displayName, size: SizeConfig.f(28), radius: 21),
                             title: Text(
                               displayName,
                               style: const TextStyle(
@@ -1448,7 +1448,7 @@ class _ReportingHierarchyTabState extends State<_ReportingHierarchyTab> {
   }
 
   Widget _buildActionCard() {
-    final primary = Colors.blue;
+    final primary = const Color.fromARGB(255, 12, 86, 147);
 
     return Container(
       padding: const EdgeInsets.all(18),

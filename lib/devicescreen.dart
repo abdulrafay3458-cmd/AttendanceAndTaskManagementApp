@@ -324,6 +324,7 @@ class _DevicScreen extends State<DeviceScreen> {
                 'deviceIsActive': device.IsActive,
                 'deviceCompanyCode': device.CompanyCode,
                 'deviceCanReadLogs': device.CanReadLogs,
+                'deviceCompanyId' :device.CompanyId,
               };
 
                final result = await Navigator.push(

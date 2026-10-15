@@ -52,28 +52,28 @@ class PendingApprovalScreen extends StatelessWidget {
         color: const Color(0xFF2F8F83),
         onTap: () => _go(context, PendingCancelLeaveApprovalsScreen()),
       ),
-      _ApprovalItem(
-        title: 'Overtime',
-        subtitle: 'Overtime approvals',
-        icon: Icons.timelapse_rounded,
-        color: const Color(0xFF8B4FC9),
-        onTap: () => _go(context, OverTimeScreen()),
-      ),
+      // _ApprovalItem(
+      //   title: 'Overtime',
+      //   subtitle: 'Overtime approvals',
+      //   icon: Icons.timelapse_rounded,
+      //   color: const Color(0xFF8B4FC9),
+      //   onTap: () => _go(context, OverTimeScreen()),
+      // ),
     ];
 
     return Scaffold(
       backgroundColor: _kBg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.blue[700],
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: const Text(
+        title: Text(
           'Pending Approvals',
-          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 20),
+          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 17),
         ),
+        backgroundColor: Colors.white,
+        foregroundColor: const Color.fromARGB(255, 12, 86, 147),
       ),
       body: CustomScrollView(
         slivers: [

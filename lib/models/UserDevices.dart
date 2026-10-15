@@ -1,4 +1,5 @@
 class UserDevices {
+  final String employeeId;
   final String employeeCode;
   final String employeeName;
   String deviceManufacturer;
@@ -7,6 +8,7 @@ class UserDevices {
   bool isRemoving;
 
   UserDevices({
+    required this.employeeId,
     required this.employeeCode,
     required this.employeeName,
     this.deviceManufacturer = "",
@@ -17,8 +19,9 @@ class UserDevices {
 
   factory UserDevices.fromJson(Map<String, dynamic> json) {
     return UserDevices(
-      employeeCode: json['employeeCode'],
-      employeeName: json['employeeName'],
+      employeeId: json['employeeId'] ?? "",
+      employeeCode: json['employeeCode'] ?? "",
+      employeeName: json['employeeName'] ?? "",
       deviceManufacturer: json['deviceManufacturer'] ?? "",
       deviceModel: json['deviceModel'] ?? "",
     );

@@ -190,7 +190,7 @@ bool isWorkingDay(int weekday) {
     setState(() => _isSubmitting = true);
 
     // final employeeId = ApiService.employeeId;
-    final empCode = ApiService.employeeId;
+    final empCode = ApiService.empGuid;
     if (empCode == null) return;
 
     final result = await ApiService.applyLeave(
@@ -215,7 +215,7 @@ bool isWorkingDay(int weekday) {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(result['error'] ?? 'Failed to submit leave request'),
+          content: Text('Failed to submit leave request'),
           backgroundColor: Colors.red,
         ),
       );

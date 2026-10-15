@@ -2,6 +2,7 @@ import 'package:attendance_app/AdminDeviceManagementScreen.dart';
 import 'package:attendance_app/UserDeviceRequestAdminScreen.dart';
 import 'package:attendance_app/HolidaySetup.dart';
 import 'package:attendance_app/applyprofiledialogue.dart';
+import 'package:attendance_app/clientlocationscreen.dart';
 import 'package:attendance_app/clientscreen.dart';
 import 'package:attendance_app/devicescreen.dart';
 import 'package:attendance_app/project_management_screen.dart';
@@ -9,6 +10,9 @@ import 'package:attendance_app/services/apiservice.dart';
 import 'package:attendance_app/task_approval_screen.dart';
 import 'package:attendance_app/team_head_task_screen.dart';
 import 'package:attendance_app/team_management_screen.dart';
+import 'package:attendance_app/models/standardHourGroup.dart';
+import 'package:attendance_app/services/StandardHourGroup.dart';
+import 'package:attendance_app/standardHourScreen.dart';
 import 'package:attendance_app/teamscreen.dart';
 import 'package:attendance_app/widgets/SizeConfig.dart';
 import 'package:flutter/material.dart';
@@ -92,6 +96,13 @@ class Adminscreen extends StatelessWidget {
           color: const Color(0xFFC77D2E),
           onTap: () => _go(context, Clientscreen()),
         ),
+        _AdminItem(
+          title: 'Client Locations',
+          subtitle: 'Sites & geo-fence',
+          icon: Icons.location_on_rounded,
+          color: const Color(0xFF3C5A82),
+          onTap: () => _go(context, const ClientLocationScreen()),
+        )
       ]),
       _AdminSection('Devices', [
         _AdminItem(
@@ -118,6 +129,20 @@ class Adminscreen extends StatelessWidget {
       ]),
       _AdminSection('Approvals & Setup', [
         _AdminItem(
+          title: 'Standard Hours',
+          subtitle: 'Employee Shift Management',
+          icon: Icons.work_outline_rounded,
+          color: const Color.fromARGB(255, 154, 143, 79),
+          onTap: () => _go(
+            context,
+            Standardhour(),
+            // ProjectManagementScreen(
+            //   companyId: resolvedCompanyId,
+            //   currentEmployeeId: resolvedEmployeeId,
+            // ),
+          ),
+        ),
+        _AdminItem(
           title: 'Projects',
           subtitle: 'Create & assign teams',
           icon: Icons.work_outline_rounded,
@@ -131,40 +156,62 @@ class Adminscreen extends StatelessWidget {
           ),
         ),
         _AdminItem(
-          title: 'My Team Tasks',
-          subtitle: 'Projects & tasks for your team',
-          icon: Icons.assignment_ind_rounded,
+          title: 'Profile Pic',
+          subtitle: 'Employee Profile Picture Setup',
+          icon: Icons.work_outline_rounded,
           color: const Color(0xFF4F9A5B),
-          onTap: () async {
-            // TeamHeadTaskScreen needs a specific teamId, not just the employee —
-            // resolve which team this employee heads first.
-            final myTeams = await ApiService.getTeamsHeadedBy(resolvedCompanyId, resolvedEmployeeId);
-            if (myTeams.isEmpty) {
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('You are not set as a Team Head for any team.')),
-                );
-              }
-              return;
-            }
-            if (context.mounted) {
-              _go(
-                context,
-                TeamHeadTaskScreen(
-                  teamHeadEmployeeId: resolvedEmployeeId,
-                  teamId: myTeams.first['teamId'], // if an employee can head >1 team, add a picker here
-                ),
-              );
-            }
-          },
+          onTap: () => _go(
+            context,
+            ApproveProfilePic(),
+            // ProjectManagementScreen(
+            //   companyId: resolvedCompanyId,
+            //   currentEmployeeId: resolvedEmployeeId,
+            // ),
+          ),
         ),
-        _AdminItem(
-          title: 'Task Approvals',
-          subtitle: 'Approve or reject requests',
-          icon: Icons.fact_check_rounded,
-          color: const Color(0xFF4F9A5B),
-          onTap: () => _go(context, TaskApprovalScreen(approverEmployeeId: resolvedEmployeeId)),
-        ),
+        // _AdminItem(
+        //   title: 'My Team Tasks',
+        //   subtitle: 'Projects & tasks for your team',
+        //   icon: Icons.assignment_ind_rounded,
+        //   color: const Color(0xFF4F9A5B),
+        //   onTap: () async {
+        //     final myTeams = await ApiService.getTeamsHeadedBy(
+        //       resolvedCompanyId,
+        //       resolvedEmployeeId,
+        //     );
+        //     print("MyTeams Response: ${myTeams}");
+        //     if (!context.mounted) return;
+        //     if (myTeams.isEmpty) {
+        //       if (context.mounted) {
+        //         ScaffoldMessenger.of(context).showSnackBar(
+        //           const SnackBar(
+        //             content: Text('You are not assigned as head of any team.'),
+        //             behavior: SnackBarBehavior.floating,
+        //             margin: EdgeInsets.all(16),
+        //           ),
+        //         );
+        //       }
+        //       return;
+        //     }
+        //     if (context.mounted) {
+        //       _go(
+        //         context,
+        //         TeamHeadTaskScreen(
+        //           teamHeadEmployeeId: resolvedEmployeeId,
+        //           teamId: myTeams.first['teamId'], // primary / default team
+        //           allTeams: myTeams,               // 👈 full list for cross-team assignment
+        //         ),
+        //       );
+        //     }
+        //   },
+        // ),
+        // _AdminItem(
+        //   title: 'Task Approvals',
+        //   subtitle: 'Approve or reject requests',
+        //   icon: Icons.fact_check_rounded,
+        //   color: const Color(0xFF4F9A5B),
+        //   onTap: () => _go(context, TaskApprovalScreen(approverEmployeeId: resolvedEmployeeId)),
+        // ),
       ]),
     ];
 
@@ -173,15 +220,10 @@ class Adminscreen extends StatelessWidget {
       appBar: AppBar(
         title: Text(
           'Admin Panel',
-          style: TextStyle(
-            fontWeight: FontWeight.w700,
-            fontSize: SizeConfig.f(20),
-            color: Colors.blue[700],
-          ),
+          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 17),
         ),
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        centerTitle: false,
+        backgroundColor: Colors.white,
+        foregroundColor: const Color.fromARGB(255, 12, 86, 147),
       ),
       body: CustomScrollView(
         slivers: [

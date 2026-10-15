@@ -1,5 +1,6 @@
 class TeamMember {
   final String employeeId;
+  final String employeeCode;
   final String name;
   final String email;
   final String department;
@@ -10,6 +11,7 @@ class TeamMember {
   final String companyCode;
   final String machineId;
   final String phone;
+  final String leadId;
   final String leadCode;
   final String joinDate;
 
@@ -23,6 +25,7 @@ class TeamMember {
 
   TeamMember({
     required this.employeeId,
+    required this.employeeCode,
     required this.name,
     required this.email,
     required this.department,
@@ -32,6 +35,7 @@ class TeamMember {
     required this.machineId,
     required this.phone,
     required this.leadCode,
+    required this.leadId,
     required this.joinDate,
     required this.isAppUser,
     required this.isActive,
@@ -43,6 +47,7 @@ class TeamMember {
   // In services/teammember.dart
 TeamMember copyWith({
   String? employeeId,
+  String? employeeCode,
   String? name,
   String? email,
   String? phone,
@@ -52,6 +57,7 @@ TeamMember copyWith({
   String? companyCode,
   int? standardHourCode,
   String? leadCode,
+  String? leadId,
   String? machineId,
   String? joinDate,
   bool? isActive,
@@ -61,6 +67,7 @@ TeamMember copyWith({
 }) {
   return TeamMember(
     employeeId: employeeId ?? this.employeeId,
+    employeeCode: employeeCode ?? this.employeeCode,
     name: name ?? this.name,
     email: email ?? this.email,
     phone: phone ?? this.phone,
@@ -70,6 +77,7 @@ TeamMember copyWith({
     companyCode: companyCode ?? this.companyCode,
     standardHourCode: standardHourCode ?? this.standardHourCode,
     leadCode: leadCode ?? this.leadCode,
+    leadId: leadId ?? this.leadId,
     machineId: machineId ?? this.machineId,
     joinDate: joinDate ?? this.joinDate,
     isActive: isActive ?? this.isActive,
@@ -82,6 +90,7 @@ TeamMember copyWith({
   factory TeamMember.fromJson(Map<String, dynamic> json) {
     return TeamMember(
       employeeId: json['employeeId']?.toString() ?? '',
+      employeeCode: json['employeeCode']?.toString() ?? '',
       name: json['name']?.toString() ?? '',
       email: json['email']?.toString() ?? '',
       department: json['department']?.toString() ?? '',
@@ -97,6 +106,7 @@ TeamMember copyWith({
       machineId: json['machineId']?.toString() ?? '',
       phone: json['phone']?.toString() ?? '',
       leadCode: json['leadCode']?.toString() ?? '',
+      leadId: json['leadId']?.toString() ?? '',
       joinDate: json['joinDate']?.toString() ?? '',
 
       isAppUser: json['isAppUser'] ?? false,

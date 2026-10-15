@@ -2,18 +2,24 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:ui';
 import 'package:attendance_app/main.dart';
+import 'package:attendance_app/mixins/site_validation_prompter.dart';
+import 'package:attendance_app/models/AssignedTaskModel.dart';
 import 'package:attendance_app/models/AttendanceRecord.dart';
 import 'package:attendance_app/models/applyimage.dart';
 import 'package:attendance_app/models/chart.dart';
 import 'package:attendance_app/models/dayWise.dart';
 import 'package:attendance_app/models/pendingTasks.dart';
 import 'package:attendance_app/models/prevDateData.dart';
+import 'package:attendance_app/services/ApiClient.dart';
 import 'package:attendance_app/services/imageregistration.dart';
+import 'package:attendance_app/services/site_validation_service.dart';
+import 'package:attendance_app/site_validation_alerts_screen.dart';
 import 'package:attendance_app/services/taskmodel.dart';
 import 'package:attendance_app/services/apiservice.dart';
 import 'package:attendance_app/taskdetail.dart';
 import 'package:attendance_app/taskscreen.dart';
 import 'package:attendance_app/widgets/SizeConfig.dart';
+import 'package:attendance_app/widgets/app_date.dart';
 import 'package:easy_date_timeline/easy_date_timeline.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/gestures.dart';
@@ -22,14 +28,23 @@ import 'package:intl/intl.dart';
 import 'package:slide_to_act/slide_to_act.dart';
 import 'package:geolocator/geolocator.dart';
 
-class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key});
 
+class DashboardScreen extends StatefulWidget{
+  const DashboardScreen({super.key});
+  
   @override
-  _DashboardScreenState createState() => _DashboardScreenState();
+  State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+
+
+class _DashboardScreenState extends State<DashboardScreen>
+    with SiteValidationPrompter {
+    @override
+  late final SiteValidationService siteValidationService =
+      SiteValidationService(ApiClient().dio);
+
+  // late final SiteValidationService siteValidationService;
   DateTime? dueDateTime;
   List<PendingTask> _pendingTasks = [];
   bool _isLoadingTasks = true;
@@ -37,24 +52,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
   TaskSummaryResponse? _taskSummary;
   bool _dialogShown = false;
   AttendanceRecord? _todayAttendance;
-  List<TaskModel> _activeTasks = [];
+  List<AssignedTaskModel> _activeTasks = [];
   bool _isLoading = true;
   bool _isLeave = false;
   String _currentTime = '';
   Timer? _timer;
   Timer? _realtimeTimer;
   bool _isRealtimeUpdating = false;
+  int _teamAlertCount = 0;
 
   // Dates (Current, Range Date)
-  DateTime _selectedDate = DateTime.now();
-  DateTime _selectedStartDate = DateTime.now();
-  DateTime _selectedEndDate = DateTime.now();
+  DateTime _selectedDate = ServerClock.nowLocal;
+  DateTime _selectedStartDate = ServerClock.nowLocal;
+  DateTime _selectedEndDate = ServerClock.nowLocal;
   bool checkProg = false;
 
   // Profile Image
   ImageProvider? _profileImageProvider;
   bool _isCheckingImageStatus = false;
   bool _hasImageError = false;
+  
   
   // Previous Day Data List
   PreviousDateData? _previousDateData;
@@ -74,6 +91,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Chart? _chart;
   String _selectedType = "weekly";
   final List<String> _types = ["weekly", "monthly", "yearly"];
+  
 
 void _loadPendingTasks() async {
   try {
@@ -102,9 +120,9 @@ void _loadPendingTasks() async {
 
         final success = await ApiService.getNewProfileRequest(
           ApplyImageModel(
-            employeeCode: ApiService.currentEmployee!.employeeId,
+            employeeCode: ApiService.currentEmployee!.empGuid,
             faceImage: base64Image,
-            companyCode: ApiService.currentEmployee!.companyCode,
+            companyCode: ApiService.currentEmployee!.companyGuid,
           ),
         );
 
@@ -182,6 +200,7 @@ void _loadPendingTasks() async {
     _loadPendingTasks();
 
     super.initState();
+    // siteValidationService = SiteValidationService(ApiClient().dio);
     _initializeProfileImage();
 
     // WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -396,6 +415,7 @@ void _loadPendingTasks() async {
   }
 
   Future<void> _loadData() async {
+    _loadTeamAlertCount();
     setState(() => _isLoading = true);
 
     await ApiService.getEmployeeById();
@@ -404,24 +424,24 @@ void _loadPendingTasks() async {
           ApiService.currentEmployee?.isDeviceRegistered == true ? false : true;
     });
 
-    final employeeId = ApiService.employeeId;
-    final companyCode = ApiService.currentEmployee?.companyCode;
+    final employeeId = ApiService.empGuid;
+    final companyCode = ApiService.currentEmployee?.companyGuid;
     final chart = await ApiService.chart(
       employeeId: employeeId!,
-      endDate: DateTime.now(),
-      dateTime: DateTime.now(),
+      endDate: ServerClock.nowLocal,
+      dateTime: ServerClock.nowLocal,
     );
 
     try {
       Daywise? result;
       try {
         if (employeeId != null && employeeId.isNotEmpty) {
-          result = await ApiService.standardHour(employeeId, DateTime.now());
+          result = await ApiService.standardHour(employeeId, ServerClock.nowLocal);
         }
       } catch (e) {
         print("Error in getStandardHour: $e");
       }
-
+print('uusujs : {$employeeId}');
       _taskSummary = await ApiService.taskSummary();
 
       if (employeeId != null) {
@@ -432,15 +452,12 @@ void _loadPendingTasks() async {
                                              endDate: _selectedEndDate,
                                              dateTime: _selectedStartDate, 
                                            );
-        final tasks = await ApiService.getActiveTasks(employeeId);
-        if (tasks.isNotEmpty) {
-          calculateOffset(tasks.first.serverNow);
-        } else {
-          // No active tasks
-          _serverOffset = Duration.zero;
+        final tasks = await ApiService.getAssignedTasks(employeeId);
+        if (tasks.isNotEmpty && tasks.first.serverNow != null) {
+          ServerClock.sync(tasks.first.serverNow!);   // serverNow must be a UTC instant
         }
         final filteredTasks = tasks
-            .where((task) => task.status == 'in_progress')
+            .where((task) => task.isRunning)
             .toList();
 
         setState(() {
@@ -462,7 +479,12 @@ void _loadPendingTasks() async {
       setState(() => _isLoading = false);
     }
   }
-
+Future<void> _loadTeamAlertCount() async {
+  try {
+    final alerts = await siteValidationService.getTeamAlerts(days: 1);
+    if (mounted) setState(() => _teamAlertCount = alerts.length);
+  } catch (_) {}
+}
   void _handleRealtimeTimer() {
     if (_isTodaySelected() && _isUserCheckedIn()) {
       if (_realtimeTimer == null || !_realtimeTimer!.isActive) {
@@ -476,18 +498,18 @@ void _loadPendingTasks() async {
 
   void _updateTime() {
     setState(() {
-      _currentTime = DateFormat('hh:mm:ss a').format(DateTime.now());
+      _currentTime = DateFormat('hh:mm:ss a').format(ServerClock.nowLocal);
     });
   }
 
   bool _isTodaySelected() {
-    final today = DateTime.now();
+    final today = ServerClock.nowLocal;
     return _selectedDate.year == today.year &&
         _selectedDate.month == today.month &&
         _selectedDate.day == today.day;
   }
 // bool _canMarkManualAttendance() {
-//   final today = DateTime.now();
+//   final today = ServerClock.nowUtc;
 
 //   final currentDate = DateTime(today.year, today.month, today.day);
 //   final selected = DateTime(
@@ -625,22 +647,36 @@ void _loadPendingTasks() async {
       appBar: AppBar(
         title: Text(
           'Dashboard',
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: SizeConfig.f(20),
-          ),
+          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 17),
         ),
         backgroundColor: Colors.white,
-        foregroundColor: Colors.blue[700],
-        elevation: 0,
+        foregroundColor: const Color.fromARGB(255, 12, 86, 147),
         actions: [
-          IconButton(
-            icon: Icon(Icons.refresh_outlined),
-            onPressed: _loadData,
-            tooltip: 'Refresh',
-            iconSize: 22,
+  if (_teamAlertCount > 0)
+    IconButton(
+      tooltip: 'Site validation alerts',
+      icon: Badge(
+        label: Text('$_teamAlertCount'),
+        child: const Icon(Icons.report_problem_outlined),
+      ),
+      onPressed: () async {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) =>
+                SiteValidationAlertsScreen(service: siteValidationService),
           ),
-        ],
+        );
+        _loadTeamAlertCount();
+      },
+    ),
+  IconButton(
+    icon: Icon(Icons.refresh_outlined),
+    onPressed: _loadData,
+    tooltip: 'Refresh',
+    iconSize: 22,
+  ),
+],
       ),
       body: _isLoading
           ? Center(child: CircularProgressIndicator())
@@ -1009,13 +1045,13 @@ void _loadPendingTasks() async {
                           Padding(
                             padding: EdgeInsets.all(0),
                             child: EasyDateTimeLine(
-                              initialDate: _selectedDate.isAfter(DateTime.now()) 
-                                  ? DateTime.now() 
+                              initialDate: _selectedDate.isAfter(ServerClock.nowLocal) 
+                                  ? ServerClock.nowLocal 
                                   : _selectedDate,
                               onDateChange: (date) async {
                                 
                                 // Check if selected date is in the future
-                                final now = DateTime.now();
+                                final now = ServerClock.nowLocal;
                                 final selectedDate = DateTime(date.year, date.month, date.day);
                                 final currentDate = DateTime(now.year, now.month, now.day);
                                 
@@ -1044,7 +1080,7 @@ void _loadPendingTasks() async {
                                     'yyyy-MM-dd',
                                   ).format(date);
                                   final empId = employee?.employeeId;
-
+                                  final guid = ApiService.empGuid;
                                   if (empId == null || empId.isEmpty) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
@@ -1055,10 +1091,20 @@ void _loadPendingTasks() async {
                                     );
                                     return;
                                   }
+                                   if (guid == null || guid.isEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Employee ID is required',
+                                        ),
+                                      ),
+                                    );
+                                    return;
+                                  }
 
-                                  final data = await ApiService.getDataForDate(formattedDate, empId);
+                                  final data = await ApiService.getDataForDate(formattedDate, guid);
                                   final holidayResult = await ApiService.isHoliday(empId, _selectedDate);
-                                  final result = await ApiService.standardHour(empId, date);
+                                  final result = await ApiService.standardHour(guid, date);
                                   
                                   int doneCount = 0;
                                   int inProgressCount = 0;
@@ -1090,7 +1136,7 @@ void _loadPendingTasks() async {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
                                         content: Text(
-                                          'No records found for selected date',
+                                          'No task record found for selected date',
                                         ),
                                       ),
                                     );
@@ -1130,7 +1176,7 @@ void _loadPendingTasks() async {
                               ),
                             ),
                           ),
-                          if (_selectedDate.isAfter(DateTime.now())) ...[
+                          if (_selectedDate.isAfter(ServerClock.nowLocal)) ...[
                             SizedBox(
                               width: double.infinity,
                               height: SizeConfig.h(10),
@@ -2085,7 +2131,7 @@ void _loadPendingTasks() async {
                                               ),
                                               onPressed: () async {
                                                 final employeeId =
-                                                    ApiService.employeeId;
+                                                    ApiService.empGuid;
                                                 if (employeeId != null) {
                                                   final chart =
                                                       await ApiService.chart(
@@ -2148,6 +2194,7 @@ void _loadPendingTasks() async {
                     ),
                   ),
                 ),
+               
                 // CHECK IN/OUT SWIPE BUTTON
                 if (_isLeave == false &&
                     isApproved == true &&
@@ -2293,16 +2340,16 @@ Widget _buildPendingTaskList() {
     ),
         child: Theme(
       data: Theme.of(context).copyWith(
-        dividerColor: Colors.transparent, // ✅ REMOVE TOP/BOTTOM LINE
+        dividerColor: Colors.transparent,
       ),
     child: ExpansionTile(
-      initiallyExpanded: false, // show tasks by default
+      initiallyExpanded: false,
       title: Text(
         "Pending Tasks",
         style: TextStyle(
           fontSize: SizeConfig.f(14),
           fontWeight: FontWeight.bold,
-          color: Colors.redAccent, // highlight title
+          color: Colors.redAccent,
         ),
       ),
       subtitle: Text(
@@ -2315,7 +2362,7 @@ Widget _buildPendingTaskList() {
       children: [
         ConstrainedBox(
           constraints: BoxConstraints(
-            maxHeight: SizeConfig.h(25), // limits height
+            maxHeight: SizeConfig.h(25),
           ),
           child: ListView.builder(
             shrinkWrap: true,
@@ -2335,14 +2382,14 @@ Widget _buildPendingTaskList() {
 }
 Widget _buildTaskItem(PendingTask task) {
     if (task.dueTime != null && task.dueTime!.isNotEmpty) {
-    dueDateTime = DateTime.tryParse(task.dueTime!);
+    // dueDateTime = DateTime.tryParse(task.dueTime!);
+    dueDateTime = AppDate.tryParseUtc(task.dueTime);
   }
   return Container(
     margin: EdgeInsets.symmetric(
         horizontal: SizeConfig.w(4), vertical: SizeConfig.h(0.7)),
     padding: EdgeInsets.all(SizeConfig.w(3)),
     decoration: BoxDecoration(
-      // color: Colors.redAccent.withOpacity(0.05), // soft highlight
       borderRadius: BorderRadius.circular(SizeConfig.w(2)),
       border: Border.all(
         color: _getPriorityColor(task.priority).withOpacity(0.7),
@@ -2623,20 +2670,11 @@ String _formatTime(DateTime date) {
     );
   }
 
-  Widget _buildTaskCard(TaskModel task) {
-    if (task.status == "in_progress") {
-      checkProg = true;
-    } else {
-      checkProg = false;
-    }
-
-    final isRunning =
-        task.timeLogs?.isNotEmpty == true &&
-        task.timeLogs?.last.startTime != null &&
-        task.timeLogs?.last.stopTime == null;
+  Widget _buildTaskCard(AssignedTaskModel task) {
+    final isRunning = task.isRunning;
 
     Color priorityColor;
-    switch (task.priority) {
+    switch (task.priority.toLowerCase()) {
       case 'high':
         priorityColor = Colors.red;
         break;
@@ -2662,7 +2700,7 @@ String _formatTime(DateTime date) {
               children: [
                 Expanded(
                   child: Text(
-                    task.taskTitle,
+                    task.title,
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: SizeConfig.f(15),
@@ -2695,12 +2733,22 @@ String _formatTime(DateTime date) {
             ),
             SizedBox(height: SizeConfig.h(1)),
             Text(
-              'Assigned by: ${task.assignedByName}',
+              'Assigned by: ${task.assignedBy}',
               style: TextStyle(
                 fontSize: SizeConfig.f(11),
                 color: Colors.grey[600],
               ),
             ),
+            if (task.teamName.isNotEmpty) ...[
+              SizedBox(height: SizeConfig.h(0.5)),
+              Text(
+                'Team: ${task.teamName}',
+                style: TextStyle(
+                  fontSize: SizeConfig.f(11),
+                  color: Colors.grey[600],
+                ),
+              ),
+            ],
             if (task.dueDate != null) ...[
               SizedBox(height: SizeConfig.h(0.5)),
               Row(
@@ -2721,76 +2769,59 @@ String _formatTime(DateTime date) {
                 ],
               ),
             ],
-            SizedBox(height: SizeConfig.h(2)),
-            Row(
-              children: [
-                Icon(
-                  Icons.access_time,
-                  size: SizeConfig.f(14),
-                  color: Colors.blue,
+            if (isRunning) ...[
+              SizedBox(height: SizeConfig.h(1.5)),
+              Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: SizeConfig.w(2),
+                  vertical: SizeConfig.h(0.7),
                 ),
-                SizedBox(width: SizeConfig.w(1)),
-                RunningTimer(
-                  initialMinutes: task.currentDayStartTime ?? 0,
-                  isRunning: isRunning,
-                  runningStartTime: isRunning
-                      ? task.timeLogs?.last.startTime
-                      : null,
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(SizeConfig.w(2)),
                 ),
-                Spacer(),
-                if (isRunning)
-                  Container(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: SizeConfig.w(2),
-                      vertical: SizeConfig.h(0.5),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: SizeConfig.f(6),
+                      height: SizeConfig.f(6),
+                      decoration: const BoxDecoration(
+                        color: Colors.green,
+                        shape: BoxShape.circle,
+                      ),
                     ),
-                    decoration: BoxDecoration(
-                      color: Colors.green.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(SizeConfig.w(2)),
+                    SizedBox(width: SizeConfig.w(1)),
+                    Text(
+                      'Running',
+                      style: TextStyle(
+                        color: Colors.green,
+                        fontSize: SizeConfig.f(10),
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: SizeConfig.f(6),
-                          height: SizeConfig.f(6),
-                          decoration: BoxDecoration(
-                            color: Colors.green,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        SizedBox(width: SizeConfig.w(1)),
-                        Text(
-                          'Running',
-                          style: TextStyle(
-                            color: Colors.green,
-                            fontSize: SizeConfig.f(10),
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
+                  ],
+                ),
+              ),
+            ],
             SizedBox(height: SizeConfig.h(2)),
             Row(
               children: [
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: checkProg
+                    onPressed: isRunning
                         ? () => _stopTask(task)
                         : () => _handleStartTask(task),
                     icon: Icon(
-                      checkProg ? Icons.stop : Icons.play_arrow,
+                      isRunning ? Icons.stop : Icons.play_arrow,
                       size: SizeConfig.f(16),
                     ),
                     label: Text(
-                      checkProg ? 'Stop' : 'Start',
+                      isRunning ? 'Stop' : 'Start',
                       style: TextStyle(fontSize: SizeConfig.f(13)),
                     ),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: checkProg ? Colors.red : Colors.green,
+                      foregroundColor: isRunning ? Colors.red : Colors.green,
                       padding: EdgeInsets.symmetric(vertical: SizeConfig.h(1)),
                     ),
                   ),
@@ -2798,7 +2829,7 @@ String _formatTime(DateTime date) {
                 SizedBox(width: SizeConfig.w(2)),
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: () => _viewTaskDetails(task),
+                    onPressed: () => _viewAssignedTaskDetails(task),
                     icon: Icon(Icons.info_outline, size: SizeConfig.f(16)),
                     label: Text(
                       'Details',
@@ -2823,7 +2854,7 @@ String _formatTime(DateTime date) {
     );
   }
 
-  Future<void> _handleStartTask(TaskModel task) async {
+  Future<void> _handleStartTask(AssignedTaskModel task) async {
     if (task.taskPreference != 'client') {
       await _startTask(task);
       return;
@@ -2846,7 +2877,7 @@ String _formatTime(DateTime date) {
       );
 
       final isAllowed = await ApiService.validateTaskLocation(
-        taskId: task.id,
+        taskId: task.taskId,
         latitude: position.latitude,
         longitude: position.longitude,
       );
@@ -2862,18 +2893,21 @@ String _formatTime(DateTime date) {
     }
   }
 
-  Future<void> _startTask(TaskModel task) async {
+  Future<void> _startTask(AssignedTaskModel task) async {
     final employeeId = ApiService.employeeId;
     if (employeeId == null) return;
 
     final result = await ApiService.startTask(
       employeeId: employeeId,
-      taskId: task.id,
+      taskId: task.taskId,
     );
 
     if (result['success'] == true) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Task started!'), backgroundColor: Colors.green),
+        const SnackBar(
+          content: Text('Task started!'),
+          backgroundColor: Colors.green,
+        ),
       );
       _loadData();
     } else {
@@ -2886,7 +2920,7 @@ String _formatTime(DateTime date) {
     }
   }
 
-  Future<void> _stopTask(TaskModel task) async {
+  Future<void> _stopTask(AssignedTaskModel task) async {
     final result = await showDialog<String>(
       context: context,
       builder: (context) => StopTaskDialog(),
@@ -2899,13 +2933,12 @@ String _formatTime(DateTime date) {
 
     final response = await ApiService.stopTask(
       employeeId: employeeId,
-      taskId: task.id,
+      taskId: task.taskId,
       notes: result,
     );
 
     if (response['success'] == true) {
       final todayHours = response['todayHours'];
-      checkProg = false;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -2924,6 +2957,120 @@ String _formatTime(DateTime date) {
       );
     }
   }
+
+  void _viewAssignedTaskDetails(AssignedTaskModel task) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Padding(
+        padding: EdgeInsets.fromLTRB(
+          SizeConfig.w(5),
+          SizeConfig.h(2),
+          SizeConfig.w(5),
+          SizeConfig.h(3),
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+              SizedBox(height: SizeConfig.h(2)),
+              Text(
+                task.title,
+                style: TextStyle(
+                  fontSize: SizeConfig.f(19),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              SizedBox(height: SizeConfig.h(1.5)),
+              _buildAssignedTaskDetailRow('Assigned By', task.assignedBy),
+              _buildAssignedTaskDetailRow(
+                'Team',
+                task.teamName.isEmpty ? '--' : task.teamName,
+              ),
+              _buildAssignedTaskDetailRow('Priority', task.priority),
+              _buildAssignedTaskDetailRow('Status', task.status ?? '--'),
+              if (task.startDate != null)
+                _buildAssignedTaskDetailRow(
+                  'Start Date',
+                  DateFormat('MMM dd, yyyy hh:mm a')
+                      .format(task.startDate!.toLocal()),
+                ),
+              if (task.dueDate != null)
+                _buildAssignedTaskDetailRow(
+                  'Due Date',
+                  DateFormat('MMM dd, yyyy hh:mm a')
+                      .format(task.dueDate!.toLocal()),
+                ),
+              SizedBox(height: SizeConfig.h(1.5)),
+              Text(
+                'Description',
+                style: TextStyle(
+                  fontSize: SizeConfig.f(14),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              SizedBox(height: SizeConfig.h(0.7)),
+              Text(
+                task.description.isEmpty
+                    ? 'No description available.'
+                    : task.description,
+                style: TextStyle(
+                  fontSize: SizeConfig.f(13),
+                  color: Colors.grey[700],
+                  height: 1.4,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAssignedTaskDetailRow(String label, String value) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: SizeConfig.h(1)),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: SizeConfig.w(28),
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: SizeConfig.f(12),
+                color: Colors.grey[600],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                fontSize: SizeConfig.f(13),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _addCheckInTime() async {
   TimeOfDay? picked = await showTimePicker(
     context: context,
@@ -2950,7 +3097,7 @@ Future<void> markManualCheckIn(DateTime selectedTime) async {
     return;
   }
 
-  final employeeCode = ApiService.currentEmployee?.employeeId;
+  final employeeCode = ApiService.empGuid;
 
   final success = await ApiService.markManualCheckIn(
     employeeCode,
@@ -2998,7 +3145,7 @@ Future<void> markManualCheckOut(DateTime selectedTime) async {
     return;
   }
 
-  final employeeCode = ApiService.currentEmployee?.employeeId;
+  final employeeCode = ApiService.empGuid;
 
   final success = await ApiService.markManualCheckOut(
     employeeCode,
@@ -3033,7 +3180,7 @@ String _getCheckInTime() {
     DateTime? checkInTime = _getCheckInDateTime();
 
     if (checkInTime != null && _todayAttendance?.checkOutTime == null) {
-      DateTime now = DateTime.now();
+      DateTime now = ServerClock.nowUtc;
       Duration workingDuration = now.difference(checkInTime);
 
       int hours = workingDuration.inHours;
@@ -3123,16 +3270,6 @@ String _getCheckInTime() {
       : '--:--';
   }
 
-  void _viewTaskDetails(TaskModel task) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => TaskDetailsSheet(task: task, onUpdate: _loadData),
-    );
-  }
 
   @override
   void dispose() {
@@ -3235,7 +3372,7 @@ class _RunningTimerState extends State<RunningTimer> {
 
   void _startTimer() {
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      final adjustedNow = DateTime.now().toUtc().add(_serverOffset);
+      final adjustedNow = ServerClock.nowUtc;   // already server-synchronised
 
       final extra = adjustedNow.difference(widget.runningStartTime!);
 
@@ -3264,12 +3401,8 @@ class _RunningTimerState extends State<RunningTimer> {
   }
 }
 
-late Duration _serverOffset;
-
-void calculateOffset(DateTime serverNow) {
-  final localNow = DateTime.now().toUtc();
-  _serverOffset = serverNow.difference(localNow);
-}
+/// Kept so older callers still compile. Prefer ServerClock.sync(serverNow).
+void calculateOffset(DateTime serverNow) => ServerClock.sync(serverNow);
 
 String formatDuration(Duration d) {
   final hours = d.inHours.toString().padLeft(2, '0');

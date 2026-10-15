@@ -1,20 +1,9 @@
 import 'package:attendance_app/services/apiservice.dart';
 import 'package:attendance_app/services/ApiClient.dart';
+import 'package:attendance_app/widgets/SizeConfig.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
-// Screen 1 from the spec: create a project under a client and assign one or
-// more teams to it. Uses ApiService directly (createProject, getProjects,
-// addProjectTeam, getProjectTeams, setProjectTeamActive, removeProjectTeam) —
-// see patches/APPEND_TO_apiservice.dart.txt for the methods this screen calls.
-//
-// Only takes companyId + currentEmployeeId — clientOptions, teamOptions and
-// employeeOptions are loaded internally (same pattern as
-// TeamManagementScreen's _loadEmployeeOptions).
-
-// -----------------------------------------------------------------------------
-// Design tokens
-// -----------------------------------------------------------------------------
 const Color _kBg = Color(0xFFF5F6FA);
 const Color _kInk = Color(0xFF1F2430);
 const Color _kMuted = Color(0xFF7A8194);
@@ -379,16 +368,18 @@ class _ProjectManagementScreenState extends State<ProjectManagementScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _kBg,
-      appBar: AppBar(
-        backgroundColor: _kBg,
-        surfaceTintColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        centerTitle: false,
-        foregroundColor: _kInk,
-        title: const Text(
-          'Project Management',
-          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 20),
+      appBar: PreferredSize(
+        preferredSize: Size.fromHeight(kToolbarHeight + 10),
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: AppBar(
+            title: Text(
+              'Project Management',
+              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 17),
+            ),
+            backgroundColor: Colors.white,
+            foregroundColor: const Color.fromARGB(255, 12, 86, 147),
+          ),
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
@@ -426,7 +417,7 @@ class _ProjectManagementScreenState extends State<ProjectManagementScreen> {
   }
 
   Widget _buildStats() {
-    final primary = Theme.of(context).colorScheme.primary;
+    final primary = const Color.fromARGB(255, 12, 86, 147);
     final active = _projects.where((p) => p['isActive'] == true).length;
     int teams = 0;
     for (final p in _projects) {
@@ -891,7 +882,7 @@ class _DialogShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = Theme.of(context).colorScheme.primary;
+    final color = const Color.fromARGB(255, 12, 86, 147);
     final body = SizedBox(width: 400, child: content);
 
     return AlertDialog(
@@ -972,7 +963,7 @@ class _OptionDropdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final primary = Theme.of(context).colorScheme.primary;
+    final primary = const Color.fromARGB(255, 12, 86, 147);
     final entries = <_SimpleOption>[
       if (allowNone) _kNone,
       ...options,
@@ -1109,7 +1100,7 @@ class _InitialsAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final primary = Theme.of(context).colorScheme.primary;
+    final primary = const Color.fromARGB(255, 12, 86, 147);
     return Container(
       width: size,
       height: size,
@@ -1189,7 +1180,7 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final primary = Theme.of(context).colorScheme.primary;
+    final primary = const Color.fromARGB(255, 12, 86, 147);
     final content = Column(
       mainAxisSize: MainAxisSize.min,
       children: [

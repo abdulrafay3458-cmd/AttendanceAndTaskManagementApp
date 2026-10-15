@@ -8,6 +8,7 @@ class Devices {
   final DateTime? LastSync;
   final int MachineNumber;
   final String CompanyCode;
+  final String CompanyId;
   final bool IsActive;
   final bool CanReadLogs;
 
@@ -21,6 +22,7 @@ class Devices {
     required this.LastSync,
     required this.MachineNumber,
     required this.CompanyCode,
+    required this.CompanyId,
     required this.IsActive,
     required this.CanReadLogs,
   });
@@ -38,6 +40,7 @@ class Devices {
       MachineNumber: _parseInt(json['machineNumber'] ?? json['MachineNumber']),
       IsActive: _parseBool(json['isActive'] ?? json['IsActive']),
       CanReadLogs: _parseBool(json['canReadLogs'] ?? json['CanReadLogs']),
+      CompanyId: json['companyId'] ?? json['CompanyId'] ?? ''
     );
   }
 

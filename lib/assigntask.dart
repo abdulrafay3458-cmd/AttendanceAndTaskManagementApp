@@ -73,11 +73,13 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
           (m) => m.employeeId == widget.empCode,
           orElse: () => TeamMember(
             employeeId: '',
+            employeeCode: '',
             machineId: '',
             name: '',
             companyCode: '',
             email: '',
             phone: '',
+            leadId: '',
             department: '',
             designation: '',
             designationCode: 0,
