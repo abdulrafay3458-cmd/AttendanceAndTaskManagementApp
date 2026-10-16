@@ -5,41 +5,28 @@ workflows:
     instance_type: mac_mini_m2
     environment:
       flutter: stable
-      xcode: 16.2      # ← pin to 15.4, avoid latest SPM issues
+      xcode: latest
       cocoapods: default
 
     scripts:
-      - name: Flutter version
-        script: flutter --version
-
-      - name: Get packages
-        script: flutter pub get
-
-      - name: Flutter clean
-        script: flutter clean && flutter pub get
-
-      - name: Disable Swift Package Manager
+      - name: Flutter setup
         script: |
-          cd ios
-          defaults write com.apple.dt.Xcode IDEPackageSupportUseBuiltinSPMIntegration -bool NO
-          cd ..
+          flutter --version
+          flutter config --no-enable-swift-package-manager
+          flutter clean
+          flutter pub get
+
+      - name: Generate iOS config only
+        script: |
+          flutter build ios --config-only --release --no-codesign
 
       - name: Pod install
         script: |
           cd ios
-          rm -rf Pods
-          rm -f Podfile.lock
+          rm -rf Pods Podfile.lock
           pod install --repo-update
-          cd ..
 
-      - name: Build iOS no codesign
-        script: |
-          flutter build ios \
-            --release \
-            --no-codesign \
-            --no-tree-shake-icons
-
-      - name: Create Xcode Archive
+      - name: Create unsigned Xcode archive
         script: |
           xcodebuild \
             -workspace ios/Runner.xcworkspace \
@@ -49,16 +36,13 @@ workflows:
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            IPHONEOS_DEPLOYMENT_TARGET=13.0 \
             -archivePath "$CM_BUILD_DIR/Runner.xcarchive" \
             archive
 
       - name: Package IPA
         script: |
           mkdir -p "$CM_BUILD_DIR/Payload"
-          cp -r \
-            "$CM_BUILD_DIR/Runner.xcarchive/Products/Applications/Runner.app" \
-            "$CM_BUILD_DIR/Payload/Runner.app"
+          cp -r "$CM_BUILD_DIR/Runner.xcarchive/Products/Applications/Runner.app" "$CM_BUILD_DIR/Payload/"
           cd "$CM_BUILD_DIR"
           zip -r unsigned_app.ipa Payload
 
