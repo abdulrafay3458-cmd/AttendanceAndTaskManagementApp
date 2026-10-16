@@ -94,6 +94,8 @@ Future<void> setupLocalNotifications() async {
 // ============================================
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+ if (!Platform.isAndroid) return;   // ← add
+
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
@@ -130,6 +132,10 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 // FCM SETUP — SAFE VERSION (Android + iOS)
 // ============================================
 Future<void> setupFCM() async {
+    if (!Platform.isAndroid) {         // ← add
+    print('ℹ️ FCM skipped on iOS');
+    return;
+  }
   try {
     FirebaseMessaging messaging = FirebaseMessaging.instance;
 
@@ -321,26 +327,26 @@ void main() async {
 
   // Show loading screen IMMEDIATELY — prevents white screen
   runApp(const LoadingApp());
-
-  // 1. Firebase
-  try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-    print('✅ Firebase initialized');
-  } catch (e) {
-    print('❌ Firebase error: $e');
-    runApp(ErrorApp(error: 'Firebase failed: $e'));
-    return;
-  }
+// 1. Firebase (Android only for now)
+  if (Platform.isAndroid) {
+    try {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+      print('✅ Firebase initialized');
+    } catch (e) {
+      print('❌ Firebase error: $e');
+      runApp(ErrorApp(error: 'Firebase failed: $e'));
+      return;
+    }
 
   // 2. Background handler
-  try {
-    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-    print('✅ Background handler registered');
-  } catch (e) {
-    print('❌ Background handler error: $e');
-  }
+try {
+      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+      print('✅ Background handler registered');
+    } catch (e) {
+      print('❌ Background handler error: $e');
+    }
 
   // 3. Local notifications
   try {
