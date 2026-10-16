@@ -39,7 +39,7 @@ import 'package:http/http.dart' as http;
 // CONFIGURATION
 // ============================================
 const String API_BASE_URL =
-    'http://192.168.221.122:5238/api/'; // Change to your server IP
+    'http://103.104.192.247:1122/api/'; // Change to your server IP
 const String SIGNALR_URL = 'http://103.104.192.247:1122/attendanceHub';
 
 // ============================================
