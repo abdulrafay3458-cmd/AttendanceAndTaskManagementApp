@@ -1,22 +1,28 @@
 workflows:
   ios-sideload-unsigned:
-    name: iOS Sideload (Unsigned Build)
+    name: iOS Unsigned Build (Sideloadly)
     max_build_duration: 120
     instance_type: mac_mini_m2
     environment:
       flutter: stable
-      xcode: latest
+      xcode: 15.4      # ← pin to 15.4, avoid latest SPM issues
       cocoapods: default
 
     scripts:
-      - name: Flutter version check
+      - name: Flutter version
         script: flutter --version
 
-      - name: Get Flutter packages
+      - name: Get packages
         script: flutter pub get
 
-      - name: Clean build
+      - name: Flutter clean
         script: flutter clean && flutter pub get
+
+      - name: Disable Swift Package Manager
+        script: |
+          cd ios
+          defaults write com.apple.dt.Xcode IDEPackageSupportUseBuiltinSPMIntegration -bool NO
+          cd ..
 
       - name: Pod install
         script: |
@@ -26,11 +32,14 @@ workflows:
           pod install --repo-update
           cd ..
 
-      - name: Build iOS release (no codesign)
+      - name: Build iOS no codesign
         script: |
-          flutter build ios --release --no-codesign
+          flutter build ios \
+            --release \
+            --no-codesign \
+            --no-tree-shake-icons
 
-      - name: Build Xcode Archive
+      - name: Create Xcode Archive
         script: |
           xcodebuild \
             -workspace ios/Runner.xcworkspace \
@@ -42,24 +51,17 @@ workflows:
             CODE_SIGNING_ALLOWED=NO \
             IPHONEOS_DEPLOYMENT_TARGET=13.0 \
             -archivePath "$CM_BUILD_DIR/Runner.xcarchive" \
-            archive | xcpretty
+            archive
 
-      - name: Package into IPA
+      - name: Package IPA
         script: |
           mkdir -p "$CM_BUILD_DIR/Payload"
-          cp -r "$CM_BUILD_DIR/Runner.xcarchive/Products/Applications/Runner.app" \
+          cp -r \
+            "$CM_BUILD_DIR/Runner.xcarchive/Products/Applications/Runner.app" \
             "$CM_BUILD_DIR/Payload/Runner.app"
           cd "$CM_BUILD_DIR"
           zip -r unsigned_app.ipa Payload
 
     artifacts:
-      - $CM_BUILD_DIR/Runner.xcarchive
       - $CM_BUILD_DIR/unsigned_app.ipa
-
-    publishing:
-      email:
-        recipients:
-          - your-email@example.com   # ← change this
-        notify:
-          success: true
-          failure: true
+      - $CM_BUILD_DIR/Runner.xcarchive
