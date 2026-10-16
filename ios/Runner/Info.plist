@@ -45,5 +45,9 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+<key>NSCameraUsageDescription</key>
+<string>Camera access is required for employee attendance verification.</string>
+<key>NSLocationWhenInUseUsageDescription</key>
+<string>Location access is required to record employee attendance.</string>
 </dict>
 </plist>
