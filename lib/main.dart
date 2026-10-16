@@ -327,7 +327,8 @@ void main() async {
 
   // Show loading screen IMMEDIATELY — prevents white screen
   runApp(const LoadingApp());
-// 1. Firebase (Android only for now)
+
+  // 1 & 2. Firebase + background handler (Android only for now)
   if (Platform.isAndroid) {
     try {
       await Firebase.initializeApp(
@@ -340,13 +341,13 @@ void main() async {
       return;
     }
 
-  // 2. Background handler
-try {
+    try {
       FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
       print('✅ Background handler registered');
     } catch (e) {
       print('❌ Background handler error: $e');
     }
+  }
 
   // 3. Local notifications
   try {
@@ -356,7 +357,7 @@ try {
     print('❌ Local notifications error: $e');
   }
 
-  // 4. FCM — wrapped so it never crashes app
+  // 4. FCM — wrapped so it never crashes app (skipped on iOS inside)
   try {
     await setupFCM();
     print('✅ FCM setup done');
