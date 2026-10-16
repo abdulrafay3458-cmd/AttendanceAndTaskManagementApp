@@ -36,60 +36,52 @@ import 'package:geocoding/geocoding.dart';
 import 'package:http/http.dart' as http;
 
 // ============================================
-// CONFIGURATION - FOR ANDROID EMULATOR
+// CONFIGURATION
 // ============================================
 const String API_BASE_URL =
-    // 'http://10.0.2.2:5238/api'; //emmulator ip
-    // 'http://103.104.192.247:1122/api/' live;
-    'http://192.168.221.122:5238/api/'; // Android Emulator localhost
+    'http://192.168.221.122:5238/api/'; // Change to your server IP
 const String SIGNALR_URL = 'http://103.104.192.247:1122/attendanceHub';
-//     'http://10.178.2.142:5238/api'; // Android Emulator localhost
-// const String SIGNALR_URL = 'http://103.104.192.247:1122/attendanceHub';
-//     'http://localhost:5238/api'; // Android Emulator localhost
-// const String SIGNALR_URL = 'http://localhost:5238/attendanceHub';
 
-// Use these for real device on same WiFi:
-// const String API_BASE_URxL = 'http://192.168.1.100:5000/api';  // Change to your PC IP
-// const String SIGNALR_URL = 'http://192.168.1.100:5000/attendanceHub';
-
-@pragma('vm:entry-point')
-Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp();
-
-  await setupLocalNotifications(); // Re-initialize in background
-
-  if (message.notification != null) {
-    localNotifications.show(
-      message.hashCode,
-      message.notification!.title,
-      message.notification!.body,
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'high_importance_channel',
-          'High Importance Notifications',
-          importance: Importance.max,
-          priority: Priority.high,
-        ),
-      ),
-    );
-  }
-}
-
+// ============================================
+// LOCAL NOTIFICATIONS INSTANCE
+// ============================================
 final FlutterLocalNotificationsPlugin localNotifications =
     FlutterLocalNotificationsPlugin();
 
+// ============================================
+// SETUP LOCAL NOTIFICATIONS (Android + iOS)
+// ============================================
 Future<void> setupLocalNotifications() async {
+  // Android init
   const AndroidInitializationSettings androidInit =
       AndroidInitializationSettings('@mipmap/ic_launcher');
 
-  const InitializationSettings initSettings = InitializationSettings(
-    android: androidInit,
+  // iOS init
+  const DarwinInitializationSettings iosInit = DarwinInitializationSettings(
+    requestAlertPermission: true,
+    requestBadgePermission: true,
+    requestSoundPermission: true,
+    defaultPresentAlert: true,
+    defaultPresentBadge: true,
+    defaultPresentSound: true,
   );
 
-  await localNotifications.initialize(initSettings);
+  // Combined
+  const InitializationSettings initSettings = InitializationSettings(
+    android: androidInit,
+    iOS: iosInit,
+  );
 
+  await localNotifications.initialize(
+    initSettings,
+    onDidReceiveNotificationResponse: (NotificationResponse response) {
+      print('🔔 Notification tapped: ${response.payload}');
+    },
+  );
+
+  // Android notification channel (iOS does not need channels)
   const AndroidNotificationChannel channel = AndroidNotificationChannel(
-    'high_importance_channel', // MUST MATCH backend
+    'high_importance_channel',
     'High Importance Notifications',
     description: 'Used for important notifications',
     importance: Importance.max,
@@ -97,78 +89,190 @@ Future<void> setupLocalNotifications() async {
 
   final androidPlugin = localNotifications
       .resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin
-      >();
+          AndroidFlutterLocalNotificationsPlugin>();
 
   await androidPlugin?.createNotificationChannel(channel);
 }
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+// ============================================
+// FIREBASE BACKGROUND MESSAGE HANDLER
+// ============================================
+@pragma('vm:entry-point')
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
 
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  print('📩 Background message: ${message.notification?.title}');
 
-  // Initialize API Service
-  await ApiService.init();
+  // iOS handles background notifications automatically
+  // Only show local notification manually for Android
+  if (Platform.isAndroid) {
+    await setupLocalNotifications();
 
-  // Initialize cameras
-  //final cameras = await availableCameras();
-
-  //await setupLocalNotifications();
-  //await setupFCM();
-
-  runApp(AttendanceApp(cameras: cameras));
+    if (message.notification != null) {
+      await localNotifications.show(
+        message.hashCode,
+        message.notification!.title,
+        message.notification!.body,
+        const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'high_importance_channel',
+            'High Importance Notifications',
+            importance: Importance.max,
+            priority: Priority.high,
+          ),
+          iOS: DarwinNotificationDetails(
+            presentAlert: true,
+            presentBadge: true,
+            presentSound: true,
+          ),
+        ),
+      );
+    }
+  }
 }
 
-/// ===============================
-/// FCM Setup (Runs ONCE)
-/// ===============================
+// ============================================
+// FCM SETUP (Android + iOS)
+// ============================================
 Future<void> setupFCM() async {
   FirebaseMessaging messaging = FirebaseMessaging.instance;
 
-  // Request permission
-  await messaging.requestPermission(alert: true, badge: true, sound: true);
+  // Request permission (required for iOS)
+  NotificationSettings settings = await messaging.requestPermission(
+    alert: true,
+    badge: true,
+    sound: true,
+    provisional: false,
+    announcement: false,
+    carPlay: false,
+    criticalAlert: false,
+  );
 
-  // 🔹 Notification tap (app in background)
-  FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-    SiteValidationBus.instance.emit(message.data);
-    print("📲 Notification clicked");
+  print('📲 FCM Permission: ${settings.authorizationStatus}');
+
+  // iOS foreground notification presentation options
+  await FirebaseMessaging.instance
+      .setForegroundNotificationPresentationOptions(
+    alert: true,
+    badge: true,
+    sound: true,
+  );
+
+  // Get and send FCM token
+  try {
+    String? token = await messaging.getToken();
+    print('🔑 FCM Token: $token');
+    if (token != null) {
+      await ApiService().sendTokenToBackend(token);
+    }
+  } catch (e) {
+    print('❌ FCM Token error: $e');
+  }
+
+  // Token refresh listener
+  FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
+    print('🔄 FCM Token refreshed: $newToken');
+    ApiService().sendTokenToBackend(newToken);
   });
 
-  // Foreground messages
+  // Foreground messages (app is open)
   FirebaseMessaging.onMessage.listen((RemoteMessage message) {
     try {
-      print("🔥 MESSAGE RECEIVED");
-      print(message.data);
-      print(message.notification?.title);
-       SiteValidationBus.instance.emit(message.data);
+      print('🔥 FOREGROUND MESSAGE RECEIVED');
+      print('Data: ${message.data}');
+      print('Title: ${message.notification?.title}');
+
+      SiteValidationBus.instance.emit(message.data);
+
       if (message.notification != null) {
         localNotifications.show(
           message.hashCode,
           message.notification!.title,
           message.notification!.body,
-          const NotificationDetails(
-            android: AndroidNotificationDetails(
-              'high_importance_channel', // MUST MATCH channel id
+          NotificationDetails(
+            // Android
+            android: const AndroidNotificationDetails(
+              'high_importance_channel',
               'High Importance Notifications',
+              channelDescription: 'Used for important notifications',
               importance: Importance.max,
               priority: Priority.high,
+              showWhen: true,
+              icon: '@mipmap/ic_launcher',
+            ),
+            // iOS
+            iOS: const DarwinNotificationDetails(
+              presentAlert: true,
+              presentBadge: true,
+              presentSound: true,
+              badgeNumber: 1,
+              interruptionLevel: InterruptionLevel.active,
             ),
           ),
         );
-        print('🔔 Notification title: ${message.notification!.title}');
+        print('🔔 Notification shown: ${message.notification!.title}');
       }
     } catch (e) {
-      print(' Local notification error: $e');
+      print('❌ Local notification error: $e');
     }
   });
 
-  // When user taps notification
-  FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
-    print("🔄 FCM Token refreshed: $newToken");
-    ApiService().sendTokenToBackend(newToken);
+  // Notification tap — app in background
+  FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+    print('📲 Notification tapped from background');
+    print('Data: ${message.data}');
+    SiteValidationBus.instance.emit(message.data);
   });
+
+  // App opened from terminated state via notification
+  try {
+    RemoteMessage? initialMessage =
+        await FirebaseMessaging.instance.getInitialMessage();
+    if (initialMessage != null) {
+      print('🚀 App opened from terminated state via notification');
+      SiteValidationBus.instance.emit(initialMessage.data);
+    }
+  } catch (e) {
+    print('❌ Initial message error: $e');
+  }
+}
+
+// ============================================
+// MAIN ENTRY POINT
+// ============================================
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // 1. Initialize Firebase
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  // 2. Register background message handler
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+
+  // 3. Setup local notifications
+  await setupLocalNotifications();
+
+  // 4. Setup FCM (Android + iOS)
+  await setupFCM();
+
+  // 5. Initialize API Service
+  await ApiService.init();
+
+  // 6. Initialize cameras safely
+  List<CameraDescription> cameras = [];
+  try {
+    cameras = await availableCameras();
+    print('📷 Cameras found: ${cameras.length}');
+  } catch (e) {
+    print('❌ Camera init error: $e');
+  }
+
+  // 7. Run app
+  runApp(AttendanceApp(cameras: cameras));
 }
 
 // ============================================
@@ -177,32 +281,31 @@ Future<void> setupFCM() async {
 class SignalRService {
   HubConnection? _hubConnection;
   Function(Map<String, dynamic>)? onAttendanceUpdate;
-  Function(Map<String, dynamic>)? onNotificationReceived; // NEW
+  Function(Map<String, dynamic>)? onNotificationReceived;
 
   Future<void> connect() async {
     try {
       print('🔌 Connecting to SignalR...');
 
-      // _hubConnection = HubConnectionBuilder().withUrl(SIGNALR_URL).build();
       var token = ApiService.authToken;
 
       if (token == null) {
-        print(' Token is null');
-      } else {
-        _hubConnection = HubConnectionBuilder()
-            .withUrl(
-              SIGNALR_URL,
-              options: HttpConnectionOptions(
-                accessTokenFactory: () async => token,
-              ),
-            )
-            .build();
+        print('❌ Token is null, cannot connect SignalR');
+        return;
       }
+
+      _hubConnection = HubConnectionBuilder()
+          .withUrl(
+            SIGNALR_URL,
+            options: HttpConnectionOptions(
+              accessTokenFactory: () async => token,
+            ),
+          )
+          .build();
 
       // Listen for attendance updates
       _hubConnection!.on('ReceiveAttendanceUpdate', (arguments) {
         if (arguments != null && arguments.isNotEmpty) {
-          // print('📍 Real-time attendance update');
           final data = arguments[0] as Map<String, dynamic>;
           if (onAttendanceUpdate != null) {
             onAttendanceUpdate!(data);
@@ -210,10 +313,9 @@ class SignalRService {
         }
       });
 
-      // Listen for real-time notifications - NEW
+      // Listen for real-time notifications
       _hubConnection!.on('ReceiveNotification', (arguments) {
         if (arguments != null && arguments.isNotEmpty) {
-          // print('🔔 Real-time notification received');
           final data = arguments[0] as Map<String, dynamic>;
           if (onNotificationReceived != null) {
             onNotificationReceived!(data);
@@ -222,9 +324,9 @@ class SignalRService {
       });
 
       await _hubConnection!.start();
-      print(' SignalR connected');
+      print('✅ SignalR connected');
     } catch (e) {
-      print(' SignalR error: $e');
+      print('❌ SignalR error: $e');
     }
   }
 
@@ -236,17 +338,21 @@ class SignalRService {
   }
 }
 
+// ============================================
+// GLOBAL KEYS
+// ============================================
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 final GlobalKey<State<DashboardScreen>> dashboardKey =
     GlobalKey<State<DashboardScreen>>();
 
 // ============================================
-// MAIN APP
+// MAIN APP WIDGET
 // ============================================
 class AttendanceApp extends StatelessWidget {
   final List<CameraDescription> cameras;
 
   const AttendanceApp({super.key, required this.cameras});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -260,7 +366,7 @@ class AttendanceApp extends StatelessWidget {
         useMaterial3: true,
       ),
       navigatorKey: navigatorKey,
-      home: SplashScreen(),
+      home: const SplashScreen(),
     );
   }
 }
@@ -278,7 +384,6 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
   final SignalRService _signalR = SignalRService();
-  //GEt Employee info
   Employee? get employee => ApiService.currentEmployee;
   bool _isLoading = false;
 
@@ -322,7 +427,6 @@ class _HomeScreenState extends State<HomeScreen> {
     await _signalR.connect();
 
     _signalR.onAttendanceUpdate = (data) {
-      // print('📍 Attendance update: $data');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -335,7 +439,6 @@ class _HomeScreenState extends State<HomeScreen> {
     };
 
     _signalR.onNotificationReceived = (data) {
-      // print('🔔 Notification: ${data['title']}');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Column(
@@ -344,13 +447,13 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               Text(
                 data['title'] ?? 'Notification',
-                style: TextStyle(fontWeight: FontWeight.bold),
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               Text(data['message'] ?? ''),
             ],
           ),
           backgroundColor: Colors.blue,
-          duration: Duration(seconds: 4),
+          duration: const Duration(seconds: 4),
           action: SnackBarAction(
             label: 'View',
             textColor: Colors.white,
@@ -366,31 +469,25 @@ class _HomeScreenState extends State<HomeScreen> {
     };
   }
 
-  void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Colors.red),
-    );
-  }
-
   Future<void> _showRequestSentDialogBlur() {
     return showGeneralDialog(
       context: context,
       barrierDismissible: false,
-      barrierLabel: "",
+      barrierLabel: '',
       barrierColor: Colors.black.withOpacity(0.4),
-      transitionDuration: Duration(milliseconds: 200),
+      transitionDuration: const Duration(milliseconds: 200),
       pageBuilder: (context, anim1, anim2) {
         return BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
           child: AlertDialog(
-            title: const Text("Request Sent"),
+            title: const Text('Request Sent'),
             content: const Text(
-              "Your request has been sent to admin.\n\nPlease wait for approval.",
+              'Your request has been sent to admin.\n\nPlease wait for approval.',
             ),
             actions: [
               ElevatedButton(
                 onPressed: () => Navigator.pop(context, true),
-                child: const Text("OK"),
+                child: const Text('OK'),
               ),
             ],
           ),
@@ -403,29 +500,25 @@ class _HomeScreenState extends State<HomeScreen> {
     return showGeneralDialog<bool>(
       context: context,
       barrierDismissible: false,
-      barrierLabel: "",
+      barrierLabel: '',
       barrierColor: Colors.black.withOpacity(0.4),
-      transitionDuration: Duration(milliseconds: 200),
+      transitionDuration: const Duration(milliseconds: 200),
       pageBuilder: (context, anim1, anim2) {
         return BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
           child: AlertDialog(
-            title: const Text("New Device"),
+            title: const Text('New Device'),
             content: const Text(
-              "This device is not registered.\n\nDo you want to request registration?",
+              'This device is not registered.\n\nDo you want to request registration?',
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
-                // Navigator.pushReplacement(
-                //   context,
-                //   MaterialPageRoute(builder: (context) => LoginScreen()),
-                // ),
-                child: const Text("No"),
+                child: const Text('No'),
               ),
               ElevatedButton(
                 onPressed: () => Navigator.pop(context, true),
-                child: const Text("Yes"),
+                child: const Text('Yes'),
               ),
             ],
           ),
@@ -437,17 +530,15 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<bool> _sendDeviceRegistrationRequest() async {
     try {
       final result = await ApiService.requestToRegisterUserDevice();
-
-      print("Device registration request sent to backend");
       if (result == true) {
-        print("Device registration request successful");
+        print('✅ Device registration request successful');
         return true;
       } else {
-        print("Device registration request failed");
+        print('❌ Device registration request failed');
         return false;
       }
     } catch (e) {
-      print("Error sending request: $e");
+      print('❌ Error sending request: $e');
       return false;
     }
   }
@@ -461,19 +552,19 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Widget> get _screens {
     final role = employee?.role.map((r) => r.toLowerCase()).toList() ?? [];
     final workService = WorkService(ApiClient().dio);
-    
+
     return [
       DashboardScreen(key: dashboardKey),
       MyTasksScreen(service: workService),
       AttendanceHistoryScreen(),
       LeaveScreen(),
-      // Employeereport(),
       ReportsScreen(),
-      if (role.contains('admin')) Adminscreen(
-        companyId: ApiService.currentEmployee!.companyGuid,
-        currentEmployeeId: ApiService.currentEmployee!.empGuid,
-        currentEmployeeCode: ApiService.currentEmployee!.employeeCode,
-      ),
+      if (role.contains('admin'))
+        Adminscreen(
+          companyId: ApiService.currentEmployee!.companyGuid,
+          currentEmployeeId: ApiService.currentEmployee!.empGuid,
+          currentEmployeeCode: ApiService.currentEmployee!.employeeCode,
+        ),
       if (role.contains('manager')) ManagerPanel(),
       ProfileScreen(),
     ];
@@ -482,57 +573,57 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     if (ApiService.isFirstTimeLogin) {
-      return Scaffold(body: Container(color: Colors.black.withOpacity(0.2)));
+      return Scaffold(
+        body: Container(color: Colors.black.withOpacity(0.2)),
+      );
     }
+
     final role = employee?.role.map((r) => r.toLowerCase()).toList() ?? [];
     final isAdmin = role.contains('admin');
     final isManager = role.contains('manager');
 
     return Scaffold(
       body: _isLoading
-          ? Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator())
           : _screens[_selectedIndex],
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
-        onTap: (index) {
-          setState(() {
-            _selectedIndex = index;
-          });
-        },
+        onTap: (index) => setState(() => _selectedIndex = index),
         type: BottomNavigationBarType.fixed,
         selectedItemColor: Colors.blue[700],
         unselectedItemColor: Colors.grey,
         items: [
-          BottomNavigationBarItem(
+          const BottomNavigationBarItem(
             icon: Icon(Icons.home_outlined),
             label: 'Home',
           ),
-          BottomNavigationBarItem(
+          const BottomNavigationBarItem(
             icon: Icon(Icons.task_outlined),
             label: 'Tasks',
           ),
-          BottomNavigationBarItem(
+          const BottomNavigationBarItem(
             icon: Icon(Icons.calendar_today),
             label: 'History',
           ),
-          BottomNavigationBarItem(icon: Icon(Icons.event_busy), label: 'Leave'),
-          BottomNavigationBarItem(
+          const BottomNavigationBarItem(
+            icon: Icon(Icons.event_busy),
+            label: 'Leave',
+          ),
+          const BottomNavigationBarItem(
             icon: Icon(Icons.add_chart_outlined),
             label: 'Reports',
           ),
-          // Conditionally show Admin tab for admin users
           if (isAdmin)
-            BottomNavigationBarItem(
+            const BottomNavigationBarItem(
               icon: Icon(Icons.admin_panel_settings_outlined),
               label: 'Admin',
             ),
-          // Conditionally show Manager tab for manager users
           if (isManager)
-            BottomNavigationBarItem(
+            const BottomNavigationBarItem(
               icon: Icon(Icons.supervisor_account_outlined),
               label: 'Manager',
             ),
-          BottomNavigationBarItem(
+          const BottomNavigationBarItem(
             icon: Icon(Icons.person_outline_outlined),
             label: 'Profile',
           ),
@@ -543,9 +634,8 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 // ============================================
-// NEW NOTIFICATIONS SCREEN
+// NOTIFICATIONS SCREEN
 // ============================================
-
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
 
@@ -565,7 +655,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   Future<void> _loadNotifications() async {
     setState(() => _isLoading = true);
-
     final employeeId = ApiService.employeeId;
     if (employeeId != null) {
       final data = await ApiService.getNotifications(employeeId);
@@ -591,9 +680,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         foregroundColor: Colors.blue[700],
         elevation: 0,
         actions: [
-          const SizedBox(width: 8),
           IconButton(
-            icon: Icon(Icons.refresh_outlined),
+            icon: const Icon(Icons.refresh_outlined),
             onPressed: _loadNotifications,
             tooltip: 'Refresh',
             iconSize: 22,
@@ -601,32 +689,32 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         ],
       ),
       body: _isLoading
-          ? Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator())
           : _notifications.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.notifications_none, size: 64, color: Colors.grey),
-                  SizedBox(height: 16),
-                  Text(
-                    'No notifications',
-                    style: TextStyle(fontSize: 16, color: Colors.grey),
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: const [
+                      Icon(Icons.notifications_none,
+                          size: 64, color: Colors.grey),
+                      SizedBox(height: 16),
+                      Text(
+                        'No notifications',
+                        style: TextStyle(fontSize: 16, color: Colors.grey),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            )
-          : RefreshIndicator(
-              onRefresh: _loadNotifications,
-              child: ListView.builder(
-                padding: EdgeInsets.all(16),
-                itemCount: _notifications.length,
-                itemBuilder: (context, index) {
-                  final notif = _notifications[index];
-                  return _buildNotificationCard(notif);
-                },
-              ),
-            ),
+                )
+              : RefreshIndicator(
+                  onRefresh: _loadNotifications,
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: _notifications.length,
+                    itemBuilder: (context, index) {
+                      return _buildNotificationCard(_notifications[index]);
+                    },
+                  ),
+                ),
     );
   }
 
@@ -652,11 +740,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
 
     return Card(
-      margin: EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 12),
       color: isRead ? Colors.white : Colors.blue[50],
       child: ListTile(
         leading: Container(
-          padding: EdgeInsets.all(12),
+          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: color.withOpacity(0.1),
             borderRadius: BorderRadius.circular(10),
@@ -672,20 +760,20 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(height: 4),
+            const SizedBox(height: 4),
             Text(notif['message'] ?? ''),
-            SizedBox(height: 4),
+            const SizedBox(height: 4),
             Text(
               AppDate.format(
                 AppDate.tryParseUtc(notif['createdAt']),
                 'MMM dd, yyyy hh:mm a',
               ),
-              style: TextStyle(fontSize: 11, color: Colors.grey),
+              style: const TextStyle(fontSize: 11, color: Colors.grey),
             ),
           ],
         ),
         trailing: !isRead
-            ? Icon(Icons.circle, size: 12, color: Colors.blue)
+            ? const Icon(Icons.circle, size: 12, color: Colors.blue)
             : null,
         onTap: () async {
           if (!isRead) {
@@ -699,14 +787,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 }
 
 // ============================================
-// KEY FIXES APPLIED:
+// STOP TASK DIALOG
 // ============================================
-// 1. Fixed undefined 'employeeId' and 'employee' variables in DashboardScreen
-// 2. Added missing TasksScreen widget
-// 3. Fixed variable scope issues
-// 4. Improved error handling
-// ============================================
-
 class StopTaskDialog extends StatefulWidget {
   const StopTaskDialog({super.key});
 
@@ -726,12 +808,12 @@ class _StopTaskDialogState extends State<StopTaskDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text('Stop Task'),
+      title: const Text('Stop Task'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text('Add notes about your progress today (optional):'),
-          SizedBox(height: 16),
+          const Text('Add notes about your progress today (optional):'),
+          const SizedBox(height: 16),
           TextField(
             controller: _notesController,
             maxLines: 3,
@@ -747,13 +829,11 @@ class _StopTaskDialogState extends State<StopTaskDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: Text('Cancel'),
+          child: const Text('Cancel'),
         ),
         ElevatedButton(
-          onPressed: () {
-            Navigator.pop(context, _notesController.text);
-          },
-          child: Text('Stop Task'),
+          onPressed: () => Navigator.pop(context, _notesController.text),
+          child: const Text('Stop Task'),
         ),
       ],
     );
@@ -790,7 +870,7 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
   bool _isDetecting = false;
   bool _faceCaptured = false;
 
-  // 🔥 ENHANCED LIVENESS DETECTION VARIABLES
+  // LIVENESS DETECTION VARIABLES
   DateTime _lastDetectionTime = DateTime.now();
   int _blinkCount = 0;
   int _smileCount = 0;
@@ -803,16 +883,16 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
   String _statusMessage = 'Position your face in the circle';
   Color _statusColor = Colors.white;
 
-  // 🎯 RANDOM CHALLENGE SYSTEM
+  // RANDOM CHALLENGE SYSTEM
   String _currentChallenge = '';
   bool _challengeCompleted = false;
   final List<String> _challenges = ['blink', 'smile', 'turn_head'];
 
-  // 📊 TEXTURE & LIGHTING ANALYSIS
+  // TEXTURE & LIGHTING ANALYSIS
   final List<double> _brightnessValues = [];
   int _staticFrameCount = 0;
 
-  // 📍 POSITION TRACKING
+  // POSITION TRACKING
   double _distanceFromCenter = 0;
 
   @override
@@ -820,16 +900,14 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
     super.initState();
     _initializeCamera();
     _getCurrentLocation();
-    if (!widget.captureOnly) _getCurrentLocation();
     _selectRandomChallenge();
   }
 
-  // 🎲 Select random challenge for user
   void _selectRandomChallenge() {
     final random = Random();
     final challenge = _challenges[random.nextInt(_challenges.length)];
     _currentChallenge = challenge;
-  
+
     switch (challenge) {
       case 'blink':
         _statusMessage = 'Please blink once';
@@ -857,7 +935,9 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
           frontCamera,
           ResolutionPreset.medium,
           enableAudio: false,
-          imageFormatGroup: ImageFormatGroup.nv21,
+          imageFormatGroup: Platform.isIOS
+              ? ImageFormatGroup.bgra8888  // iOS format
+              : ImageFormatGroup.nv21,     // Android format
         );
 
         await _cameraController!.initialize();
@@ -876,22 +956,19 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
         await _cameraController!.startImageStream(_processCameraImage);
 
         if (mounted) {
-          setState(() {
-            _isCameraInitialized = true;
-          });
+          setState(() => _isCameraInitialized = true);
         }
       }
     } catch (e) {
-      print(' Camera error: $e');
+      print('❌ Camera error: $e');
       _showError('Camera initialization failed');
     }
   }
 
-  // 🔥 ENHANCED FACE DETECTION WITH MULTI-LAYER SECURITY
   Future<void> _processCameraImage(CameraImage image) async {
     if (_isDetecting || _faceCaptured) return;
 
-    final now = DateTime.now();   // local frame throttle: must not use the server-synced clock
+    final now = DateTime.now();
     if (now.difference(_lastDetectionTime).inMilliseconds < 250) return;
     _lastDetectionTime = now;
 
@@ -901,64 +978,49 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
       final inputImage = _convertCameraImage(image);
       final faces = await _faceDetector.processImage(inputImage);
 
-      // 🔍 TEXTURE ANALYSIS: Calculate average brightness
       final brightness = _calculateBrightness(image);
       _brightnessValues.add(brightness);
-      if (_brightnessValues.length > 10) {
-        _brightnessValues.removeAt(0);
-      }
+      if (_brightnessValues.length > 10) _brightnessValues.removeAt(0);
 
       if (faces.isEmpty) {
         _updateStatus('No face detected', Colors.red);
         _resetLivenessData();
       } else if (faces.length > 1) {
-        _updateStatus(
-          'Multiple faces detected. Show only one face.',
-          Colors.orange,
-        );
+        _updateStatus('Multiple faces detected. Show only one face.', Colors.orange);
         _resetLivenessData();
       } else {
-        final face = faces.first;
-        await _performEnhancedLivenessChecks(face, image);
+        await _performEnhancedLivenessChecks(faces.first, image);
       }
     } catch (e) {
-      print(' Face detection error: $e');
+      print('❌ Face detection error: $e');
     }
 
     _isDetecting = false;
   }
 
-  // 🔥 MULTI-LAYER ENHANCED LIVENESS DETECTION
-  Future<void> _performEnhancedLivenessChecks(
-    Face face,
-    CameraImage image,
-  ) async {
-    //  CHECK 1: Face must be inside the circle guide
+  Future<void> _performEnhancedLivenessChecks(Face face, CameraImage image) async {
     final boundingBox = face.boundingBox;
     final previewSize = _cameraController!.value.previewSize!;
 
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
 
-    final circleWidth = 280.0;
-    final circleHeight = 350.0;
+    const circleWidth = 280.0;
+    const circleHeight = 350.0;
     final circleCenterX = screenWidth / 2;
     final circleCenterY = screenHeight / 2;
 
     final scaleX = screenWidth / previewSize.height;
     final scaleY = screenHeight / previewSize.width;
 
-    final faceCenterX =
-        boundingBox.left * scaleX + (boundingBox.width * scaleX) / 2;
-    final faceCenterY =
-        boundingBox.top * scaleY + (boundingBox.height * scaleY) / 2;
+    final faceCenterX = boundingBox.left * scaleX + (boundingBox.width * scaleX) / 2;
+    final faceCenterY = boundingBox.top * scaleY + (boundingBox.height * scaleY) / 2;
     final faceWidth = boundingBox.width * scaleX;
     final faceHeight = boundingBox.height * scaleY;
 
     final distanceFromCenter =
-        ((faceCenterX - circleCenterX).abs() +
-        (faceCenterY - circleCenterY).abs());
-    _distanceFromCenter = distanceFromCenter; // Store for UI indicator
+        ((faceCenterX - circleCenterX).abs() + (faceCenterY - circleCenterY).abs());
+    _distanceFromCenter = distanceFromCenter;
 
     if (distanceFromCenter > 100) {
       _updateStatus('Center your face in the circle', Colors.orange);
@@ -978,11 +1040,9 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
       return;
     }
 
-    //  CHECK 2: Head Pose (must be relatively straight)
     final headEulerAngleY = face.headEulerAngleY ?? 0;
     final headEulerAngleZ = face.headEulerAngleZ ?? 0;
 
-    // For turn_head challenge, allow more movement
     if (_currentChallenge != 'turn_head') {
       if (headEulerAngleY.abs() > 20 || headEulerAngleZ.abs() > 20) {
         _updateStatus('Keep face straight', Colors.orange);
@@ -991,7 +1051,6 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
       }
     }
 
-    //  CHECK 3: Eye Detection
     final leftEyeProb = face.leftEyeOpenProbability;
     final rightEyeProb = face.rightEyeOpenProbability;
 
@@ -1001,11 +1060,8 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
       return;
     }
 
-    //  CHECK 4: LIGHTING VARIATION ANALYSIS (Anti-Photo Spoofing)
     if (_brightnessValues.length >= 5) {
       final brightnessVariance = _calculateVariance(_brightnessValues);
-
-      // Photos have very uniform lighting, real faces have natural variation
       if (brightnessVariance < 0.5) {
         _staticFrameCount++;
         if (_staticFrameCount > 8) {
@@ -1018,15 +1074,11 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
       }
     }
 
-    //  CHECK 5: ENHANCED MOTION DETECTION
     final imageWidth = previewSize.height;
-    final faceSize =
-        (boundingBox.width * boundingBox.height) / (imageWidth * imageWidth);
+    final faceSize = (boundingBox.width * boundingBox.height) / (imageWidth * imageWidth);
 
     _faceConfidences.add(faceSize);
-    if (_faceConfidences.length > 8) {
-      _faceConfidences.removeAt(0);
-    }
+    if (_faceConfidences.length > 8) _faceConfidences.removeAt(0);
 
     if (_faceConfidences.length >= 5) {
       final variance = _calculateVariance(_faceConfidences);
@@ -1037,16 +1089,11 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
       }
     }
 
-    //  CHECK 6: HEAD MOVEMENT TRACKING (for turn_head challenge)
     _headAnglesY.add(headEulerAngleY);
-    if (_headAnglesY.length > 10) {
-      _headAnglesY.removeAt(0);
-    }
+    if (_headAnglesY.length > 10) _headAnglesY.removeAt(0);
 
-    //  CHECK 7: CHALLENGE-RESPONSE VALIDATION
     await _validateChallenge(face, leftEyeProb, rightEyeProb, headEulerAngleY);
 
-    //  CHECK 8: Consecutive good frames
     final bothEyesOpen = leftEyeProb > 0.6 && rightEyeProb > 0.6;
     if (bothEyesOpen && _challengeCompleted) {
       _consecutiveGoodFrames++;
@@ -1054,15 +1101,13 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
       _consecutiveGoodFrames = 0;
     }
 
-    // 🎯 FINAL DECISION: All security checks passed
     if (_challengeCompleted && _consecutiveGoodFrames >= 3) {
       _updateStatus('✓ Verification complete! Capturing...', Colors.green);
-      await Future.delayed(Duration(milliseconds: 300));
+      await Future.delayed(const Duration(milliseconds: 300));
       await _captureImage();
     }
   }
 
-  // VALIDATE RANDOM CHALLENGE
   Future<void> _validateChallenge(
     Face face,
     double leftEyeProb,
@@ -1081,25 +1126,18 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
         } else if (bothEyesOpen && _wasEyesClosed) {
           _blinkCount++;
           _wasEyesClosed = false;
-          print('Blink detected! Count: $_blinkCount');
-
           if (_blinkCount >= 1) {
             _challengeCompleted = true;
             _updateStatus('Blink detected! Hold steady...', Colors.green);
-          } else {
-            _updateStatus('Please blink once', Colors.yellow);
           }
         }
         break;
 
       case 'smile':
         final smileProb = face.smilingProbability ?? 0;
-
         if (smileProb > 0.7 && !_wasSmiling) {
           _wasSmiling = true;
           _smileCount++;
-          print('Smile detected! Count: $_smileCount');
-
           if (_smileCount >= 1) {
             _challengeCompleted = true;
             _updateStatus('✓ Smile detected! Hold steady...', Colors.green);
@@ -1107,7 +1145,6 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
         } else if (smileProb < 0.4) {
           _wasSmiling = false;
         }
-
         if (!_challengeCompleted) {
           _updateStatus('Please smile', Colors.yellow);
         }
@@ -1119,17 +1156,11 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
           final minAngle = _headAnglesY.reduce((a, b) => a < b ? a : b);
           final range = maxAngle - minAngle;
 
-          // User must turn head at least 30 degrees total (left and right)
           if (range > 30) {
             _headTurnCount++;
-            print('Head turn detected! Range: $range degrees');
-
             if (_headTurnCount >= 1) {
               _challengeCompleted = true;
-              _updateStatus(
-                'Head movement detected! Hold steady...',
-                Colors.green,
-              );
+              _updateStatus('Head movement detected! Hold steady...', Colors.green);
             }
           } else {
             _updateStatus('Slowly turn head left then right', Colors.yellow);
@@ -1139,20 +1170,15 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
     }
   }
 
-  // 🔧 TEXTURE ANALYSIS: Calculate average brightness
   double _calculateBrightness(CameraImage image) {
     final bytes = image.planes.first.bytes;
     int sum = 0;
-
-    // Sample every 100th pixel for performance
     for (int i = 0; i < bytes.length; i += 100) {
       sum += bytes[i];
     }
-
     return sum / (bytes.length / 100);
   }
 
-  // 🔧 Helper: Calculate variance
   double _calculateVariance(List<double> values) {
     if (values.isEmpty) return 0;
     final mean = values.reduce((a, b) => a + b) / values.length;
@@ -1160,7 +1186,6 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
     return squaredDiffs.reduce((a, b) => a + b) / values.length;
   }
 
-  // 🔧 Helper: Reset liveness data
   void _resetLivenessData() {
     _blinkCount = 0;
     _smileCount = 0;
@@ -1174,7 +1199,6 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
     _challengeCompleted = false;
   }
 
-  // 🔧 Helper: Update status message
   void _updateStatus(String message, Color color) {
     if (mounted) {
       setState(() {
@@ -1186,42 +1210,26 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
 
   InputImage _convertCameraImage(CameraImage image) {
     final camera = _cameraController!.description;
-
     final rotation =
         InputImageRotationValue.fromRawValue(camera.sensorOrientation) ??
-        InputImageRotation.rotation0deg;
+            InputImageRotation.rotation0deg;
+
+    // iOS uses bgra8888, Android uses nv21
+    final format = Platform.isIOS
+        ? InputImageFormat.bgra8888
+        : InputImageFormat.nv21;
 
     final bytes = image.planes.first.bytes;
 
-    final inputImage = InputImage.fromBytes(
+    return InputImage.fromBytes(
       bytes: bytes,
       metadata: InputImageMetadata(
         size: Size(image.width.toDouble(), image.height.toDouble()),
         rotation: rotation,
-        format: InputImageFormat.nv21,
+        format: format,
         bytesPerRow: image.planes.first.bytesPerRow,
       ),
     );
-
-    return inputImage;
-  }
-
-  Future<void> _closeCameraAndExit() async {
-    try {
-      _isDetecting = false;
-
-      if (_cameraController != null &&
-          _cameraController!.value.isStreamingImages) {
-        await _cameraController!.stopImageStream();
-      }
-
-      await _cameraController?.dispose();
-      _cameraController = null;
-      print("camera exist method ");
-      await _faceDetector.close();
-    } catch (e) {
-      print(' Camera cleanup error: $e');
-    }
   }
 
   Future<void> _getCurrentLocation() async {
@@ -1241,12 +1249,10 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
       _currentPosition = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       );
-      
-      print(
-        '📍 Location: ${_currentPosition!.latitude}, ${_currentPosition!.longitude}',
-      );
+
+      print('📍 Location: ${_currentPosition!.latitude}, ${_currentPosition!.longitude}');
     } catch (e) {
-      print(' Location error: $e');
+      print('❌ Location error: $e');
       _showError('Could not get location');
     }
   }
@@ -1271,14 +1277,15 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
 
     try {
       await _cameraController!.stopImageStream();
-
       final image = await _cameraController!.takePicture();
+
       if (widget.captureOnly) {
         if (!mounted) return;
         setState(() => _isProcessing = false);
         Navigator.pop(context, File(image.path));
         return;
       }
+
       final imageBytes = await image.readAsBytes();
       final base64Image = base64Encode(imageBytes);
 
@@ -1291,11 +1298,11 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
 
       Map<String, dynamic> result;
 
-
       if (widget.isCheckOut) {
-
-        String address = await getAddress(_currentPosition!.latitude, _currentPosition!.longitude);
-        
+        String address = await getAddress(
+          _currentPosition!.latitude,
+          _currentPosition!.longitude,
+        );
         result = await ApiService.checkOut(
           employeeId: employeeId,
           latitude: _currentPosition!.latitude,
@@ -1304,7 +1311,10 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
           photoBase64: base64Image,
         );
       } else {
-        String address = await getAddress(_currentPosition!.latitude, _currentPosition!.longitude);
+        String address = await getAddress(
+          _currentPosition!.latitude,
+          _currentPosition!.longitude,
+        );
         result = await ApiService.checkIn(
           employeeId: employeeId,
           latitude: _currentPosition!.latitude,
@@ -1318,9 +1328,7 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
 
       if (result['success'] == true) {
         widget.onSuccess();
-
         Navigator.pop(context);
-
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -1333,15 +1341,11 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
           ),
         );
       } else {
-        //  Face recognition / backend validation failed
-        // await _restartFaceDetection(
-        //   message: result['error'] ?? 'Face not recognized. Try again.',
-        // );
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(result['error']),
-            backgroundColor: Colors.green,
+            content: Text(result['error'] ?? 'Something went wrong'),
+            backgroundColor: Colors.red,
           ),
         );
         _isProcessing = false;
@@ -1349,7 +1353,7 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
       }
     } catch (e) {
       setState(() => _isProcessing = false);
-      print(' Auto submit error: $e');
+      print('❌ Auto submit error: $e');
       _showError('Failed to submit: $e');
     }
   }
@@ -1361,41 +1365,22 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
 
       if (placemarks.isNotEmpty) {
         Placemark place = placemarks.first;
-        String address = "${place.name} ${place.thoroughfare} ${place.subLocality}, ${place.locality} ${place.administrativeArea}, ${place.country}";
-        return address;
+        return '${place.name} ${place.thoroughfare} ${place.subLocality}, '
+            '${place.locality} ${place.administrativeArea}, ${place.country}';
       }
-      
-      return "No address found for these coordinates"; 
-
+      return 'No address found for these coordinates';
     } catch (e) {
-      print("Reverse geocoding error: $e");
-      return "Error getting location";
-    }
-  }
-
-  Future<void> _restartFaceDetection({String? message}) async {
-    // Reset flags
-    _faceCaptured = false;
-    _isProcessing = false;
-    _isDetecting = false;
-    _challengeCompleted = false;
-
-    _resetLivenessData();
-
-    if (message != null) {
-      _updateStatus(message, Colors.red);
-    }
-
-    // Restart camera stream if needed
-    if (_cameraController != null && _cameraController!.value.isInitialized) {
-      await _cameraController!.startImageStream(_processCameraImage);
+      print('❌ Reverse geocoding error: $e');
+      return 'Error getting location';
     }
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Colors.red),
-    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: Colors.red),
+      );
+    }
   }
 
   @override
@@ -1410,8 +1395,11 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        title: Text(widget.title ?? (widget.isCheckOut ? 'Check Out' : 'Check In')),
+        title: Text(
+          widget.title ?? (widget.isCheckOut ? 'Check Out' : 'Check In'),
+        ),
         backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
       ),
       body: _isCameraInitialized
           ? Stack(
@@ -1437,8 +1425,9 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
                   left: 0,
                   right: 0,
                   child: Container(
-                    padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                    margin: EdgeInsets.symmetric(horizontal: 24),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24, vertical: 12),
+                    margin: const EdgeInsets.symmetric(horizontal: 24),
                     decoration: BoxDecoration(
                       color: Colors.black.withOpacity(0.8),
                       borderRadius: BorderRadius.circular(12),
@@ -1449,19 +1438,16 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
                     ),
                     child: Column(
                       children: [
-                        // Challenge Icon
                         Icon(
                           _currentChallenge == 'blink'
                               ? Icons.remove_red_eye
                               : _currentChallenge == 'smile'
-                              ? Icons.sentiment_satisfied
-                              : Icons.sync,
+                                  ? Icons.sentiment_satisfied
+                                  : Icons.sync,
                           color: _statusColor,
                           size: 32,
                         ),
-                        SizedBox(height: 8),
-
-                        // Status Message
+                        const SizedBox(height: 8),
                         Text(
                           _statusMessage,
                           textAlign: TextAlign.center,
@@ -1471,19 +1457,14 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-
-                        // Challenge Completion Indicator
                         if (_challengeCompleted)
                           Padding(
-                            padding: EdgeInsets.only(top: 8),
+                            padding: const EdgeInsets.only(top: 8),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.check_circle,
-                                  color: Colors.green,
-                                  size: 18,
-                                ),
+                              children: const [
+                                Icon(Icons.check_circle,
+                                    color: Colors.green, size: 18),
                                 SizedBox(width: 6),
                                 Text(
                                   'Challenge completed!',
@@ -1506,7 +1487,7 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
                   top: 160,
                   left: 20,
                   child: Container(
-                    padding: EdgeInsets.all(10),
+                    padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
                       color: Colors.black.withOpacity(0.7),
                       borderRadius: BorderRadius.circular(8),
@@ -1515,7 +1496,7 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
-                          children: [
+                          children: const [
                             Icon(Icons.security, color: Colors.blue, size: 14),
                             SizedBox(width: 6),
                             Text(
@@ -1528,7 +1509,7 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
                             ),
                           ],
                         ),
-                        SizedBox(height: 6),
+                        const SizedBox(height: 6),
                         _buildSecurityCheck(
                           'Position',
                           _distanceFromCenter > 0 && _distanceFromCenter <= 100,
@@ -1554,25 +1535,24 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
                     left: 0,
                     right: 0,
                     child: Container(
-                      padding: EdgeInsets.all(8),
-                      margin: EdgeInsets.symmetric(horizontal: 40),
+                      padding: const EdgeInsets.all(8),
+                      margin: const EdgeInsets.symmetric(horizontal: 40),
                       decoration: BoxDecoration(
                         color: Colors.black.withOpacity(0.7),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
-                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(
-                            Icons.location_on,
-                            color: Colors.green,
-                            size: 14,
-                          ),
-                          SizedBox(width: 4),
+                          const Icon(Icons.location_on,
+                              color: Colors.green, size: 14),
+                          const SizedBox(width: 4),
                           Text(
-                            'Location: ${_currentPosition!.latitude.toStringAsFixed(4)}, ${_currentPosition!.longitude.toStringAsFixed(4)}',
-                            style: TextStyle(color: Colors.white, fontSize: 11),
+                            'Location: '
+                            '${_currentPosition!.latitude.toStringAsFixed(4)}, '
+                            '${_currentPosition!.longitude.toStringAsFixed(4)}',
+                            style: const TextStyle(
+                                color: Colors.white, fontSize: 11),
                           ),
                         ],
                       ),
@@ -1583,7 +1563,7 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
                 if (_isProcessing)
                   Container(
                     color: Colors.black.withOpacity(0.8),
-                    child: Center(
+                    child: const Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -1599,11 +1579,11 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
                   ),
               ],
             )
-          : Center(
+          : const Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  CircularProgressIndicator(),
+                  CircularProgressIndicator(color: Colors.white),
                   SizedBox(height: 16),
                   Text(
                     'Initializing camera...',
@@ -1615,10 +1595,9 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
     );
   }
 
-  // Helper: Build security check indicator
   Widget _buildSecurityCheck(String label, bool passed) {
     return Padding(
-      padding: EdgeInsets.only(top: 4),
+      padding: const EdgeInsets.only(top: 4),
       child: Row(
         children: [
           Icon(
@@ -1626,7 +1605,7 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
             color: passed ? Colors.green : Colors.grey,
             size: 12,
           ),
-          SizedBox(width: 6),
+          const SizedBox(width: 6),
           Text(
             label,
             style: TextStyle(
