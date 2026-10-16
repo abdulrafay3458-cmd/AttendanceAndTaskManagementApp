@@ -49,5 +49,11 @@
 <string>Camera access is required for employee attendance verification.</string>
 <key>NSLocationWhenInUseUsageDescription</key>
 <string>Location access is required to record employee attendance.</string>
+<key>NSLocationAlwaysUsageDescription</key>
+<string>Location access is required to record employee attendance.</string>
+<key>NSMicrophoneUsageDescription</key>
+<string>Microphone access required for camera functionality.</string>
+<key>NSFaceIDUsageDescription</key>
+<string>Face ID is used for attendance verification.</string>
 </dict>
 </plist>
