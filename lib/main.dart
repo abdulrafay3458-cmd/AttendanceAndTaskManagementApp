@@ -113,10 +113,10 @@ void main() async {
   await ApiService.init();
 
   // Initialize cameras
-  final cameras = await availableCameras();
+  //final cameras = await availableCameras();
 
-  await setupLocalNotifications();
-  await setupFCM();
+  //await setupLocalNotifications();
+  //await setupFCM();
 
   runApp(AttendanceApp(cameras: cameras));
 }
@@ -310,14 +310,6 @@ class _HomeScreenState extends State<HomeScreen> {
         });
         setState(() => _isLoading = false);
         await _showRequestSentDialogBlur();
-        final token = await FirebaseMessaging.instance.getToken();
-        if (token != null) {
-          await ApiService().sendTokenToBackend(token);
-        }
-      } else {
-        _showError(
-          'Failed to send device registration request. Please try again later.',
-        );
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => LoginScreen()),
