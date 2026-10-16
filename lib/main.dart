@@ -38,8 +38,7 @@ import 'package:http/http.dart' as http;
 // ============================================
 // CONFIGURATION
 // ============================================
-const String API_BASE_URL =
-    'http://103.104.192.247:1122/api/'; // Change to your server IP
+const String API_BASE_URL = 'http://103.104.192.247:1122/api/';
 const String SIGNALR_URL = 'http://103.104.192.247:1122/attendanceHub';
 
 // ============================================
@@ -52,11 +51,9 @@ final FlutterLocalNotificationsPlugin localNotifications =
 // SETUP LOCAL NOTIFICATIONS (Android + iOS)
 // ============================================
 Future<void> setupLocalNotifications() async {
-  // Android init
   const AndroidInitializationSettings androidInit =
       AndroidInitializationSettings('@mipmap/ic_launcher');
 
-  // iOS init
   const DarwinInitializationSettings iosInit = DarwinInitializationSettings(
     requestAlertPermission: true,
     requestBadgePermission: true,
@@ -66,7 +63,6 @@ Future<void> setupLocalNotifications() async {
     defaultPresentSound: true,
   );
 
-  // Combined
   const InitializationSettings initSettings = InitializationSettings(
     android: androidInit,
     iOS: iosInit,
@@ -79,7 +75,6 @@ Future<void> setupLocalNotifications() async {
     },
   );
 
-  // Android notification channel (iOS does not need channels)
   const AndroidNotificationChannel channel = AndroidNotificationChannel(
     'high_importance_channel',
     'High Importance Notifications',
@@ -105,8 +100,6 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
   print('📩 Background message: ${message.notification?.title}');
 
-  // iOS handles background notifications automatically
-  // Only show local notification manually for Android
   if (Platform.isAndroid) {
     await setupLocalNotifications();
 
@@ -134,144 +127,255 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 }
 
 // ============================================
-// FCM SETUP (Android + iOS)
+// FCM SETUP — SAFE VERSION (Android + iOS)
 // ============================================
 Future<void> setupFCM() async {
-  FirebaseMessaging messaging = FirebaseMessaging.instance;
-
-  // Request permission (required for iOS)
-  NotificationSettings settings = await messaging.requestPermission(
-    alert: true,
-    badge: true,
-    sound: true,
-    provisional: false,
-    announcement: false,
-    carPlay: false,
-    criticalAlert: false,
-  );
-
-  print('📲 FCM Permission: ${settings.authorizationStatus}');
-
-  // iOS foreground notification presentation options
-  await FirebaseMessaging.instance
-      .setForegroundNotificationPresentationOptions(
-    alert: true,
-    badge: true,
-    sound: true,
-  );
-
-  // Get and send FCM token
   try {
-    String? token = await messaging.getToken();
-    print('🔑 FCM Token: $token');
-    if (token != null) {
-      await ApiService().sendTokenToBackend(token);
-    }
-  } catch (e) {
-    print('❌ FCM Token error: $e');
-  }
+    FirebaseMessaging messaging = FirebaseMessaging.instance;
 
-  // Token refresh listener
-  FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
-    print('🔄 FCM Token refreshed: $newToken');
-    ApiService().sendTokenToBackend(newToken);
-  });
+    // Request permission (required for iOS)
+    NotificationSettings settings = await messaging.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+      provisional: false,
+      announcement: false,
+      carPlay: false,
+      criticalAlert: false,
+    );
 
-  // Foreground messages (app is open)
-  FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+    print('📲 FCM Permission: ${settings.authorizationStatus}');
+
+    // iOS foreground notification presentation options
+    await FirebaseMessaging.instance
+        .setForegroundNotificationPresentationOptions(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+
+    // Get FCM token — may fail on iOS without APNs key, handle gracefully
     try {
-      print('🔥 FOREGROUND MESSAGE RECEIVED');
-      print('Data: ${message.data}');
-      print('Title: ${message.notification?.title}');
-
-      SiteValidationBus.instance.emit(message.data);
-
-      if (message.notification != null) {
-        localNotifications.show(
-          message.hashCode,
-          message.notification!.title,
-          message.notification!.body,
-          NotificationDetails(
-            // Android
-            android: const AndroidNotificationDetails(
-              'high_importance_channel',
-              'High Importance Notifications',
-              channelDescription: 'Used for important notifications',
-              importance: Importance.max,
-              priority: Priority.high,
-              showWhen: true,
-              icon: '@mipmap/ic_launcher',
-            ),
-            // iOS
-            iOS: const DarwinNotificationDetails(
-              presentAlert: true,
-              presentBadge: true,
-              presentSound: true,
-              badgeNumber: 1,
-              interruptionLevel: InterruptionLevel.active,
-            ),
-          ),
-        );
-        print('🔔 Notification shown: ${message.notification!.title}');
+      String? token = await messaging
+          .getToken()
+          .timeout(const Duration(seconds: 5));
+      print('🔑 FCM Token: $token');
+      if (token != null) {
+        await ApiService().sendTokenToBackend(token);
       }
     } catch (e) {
-      print('❌ Local notification error: $e');
+      // Non-fatal: token fails on iOS without APNs key
+      print('⚠️ FCM Token failed (no APNs key?): $e');
     }
-  });
 
-  // Notification tap — app in background
-  FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-    print('📲 Notification tapped from background');
-    print('Data: ${message.data}');
-    SiteValidationBus.instance.emit(message.data);
-  });
+    // Token refresh listener
+    FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
+      print('🔄 FCM Token refreshed: $newToken');
+      ApiService().sendTokenToBackend(newToken);
+    });
 
-  // App opened from terminated state via notification
-  try {
-    RemoteMessage? initialMessage =
-        await FirebaseMessaging.instance.getInitialMessage();
-    if (initialMessage != null) {
-      print('🚀 App opened from terminated state via notification');
-      SiteValidationBus.instance.emit(initialMessage.data);
+    // Foreground messages (app is open)
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      try {
+        print('🔥 FOREGROUND MESSAGE RECEIVED');
+        print('Data: ${message.data}');
+        print('Title: ${message.notification?.title}');
+
+        SiteValidationBus.instance.emit(message.data);
+
+        if (message.notification != null) {
+          localNotifications.show(
+            message.hashCode,
+            message.notification!.title,
+            message.notification!.body,
+            NotificationDetails(
+              android: const AndroidNotificationDetails(
+                'high_importance_channel',
+                'High Importance Notifications',
+                channelDescription: 'Used for important notifications',
+                importance: Importance.max,
+                priority: Priority.high,
+                showWhen: true,
+                icon: '@mipmap/ic_launcher',
+              ),
+              iOS: const DarwinNotificationDetails(
+                presentAlert: true,
+                presentBadge: true,
+                presentSound: true,
+                badgeNumber: 1,
+                interruptionLevel: InterruptionLevel.active,
+              ),
+            ),
+          );
+          print('🔔 Notification shown: ${message.notification!.title}');
+        }
+      } catch (e) {
+        print('❌ Local notification error: $e');
+      }
+    });
+
+    // Notification tap — app in background
+    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+      print('📲 Notification tapped from background');
+      SiteValidationBus.instance.emit(message.data);
+    });
+
+    // App opened from terminated state via notification
+    try {
+      RemoteMessage? initialMessage =
+          await FirebaseMessaging.instance.getInitialMessage();
+      if (initialMessage != null) {
+        print('🚀 App opened from terminated state via notification');
+        SiteValidationBus.instance.emit(initialMessage.data);
+      }
+    } catch (e) {
+      print('❌ Initial message error: $e');
     }
   } catch (e) {
-    print('❌ Initial message error: $e');
+    // FCM failure must NEVER crash the app
+    print('❌ FCM Setup failed (non-fatal): $e');
   }
 }
 
 // ============================================
-// MAIN ENTRY POINT
+// LOADING APP — shows immediately on startup
+// ============================================
+class LoadingApp extends StatelessWidget {
+  const LoadingApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Scaffold(
+        backgroundColor: Colors.white,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(color: Colors.blue),
+              SizedBox(height: 20),
+              Text(
+                'Loading...',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================
+// ERROR APP — shows if something critical fails
+// ============================================
+class ErrorApp extends StatelessWidget {
+  final String error;
+  const ErrorApp({super.key, required this.error});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Scaffold(
+        backgroundColor: Colors.white,
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, color: Colors.red, size: 64),
+                const SizedBox(height: 20),
+                const Text(
+                  'App Error',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  error,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 14, color: Colors.red),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================
+// MAIN ENTRY POINT — SAFE INITIALIZATION
 // ============================================
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 1. Initialize Firebase
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  // Show loading screen IMMEDIATELY — prevents white screen
+  runApp(const LoadingApp());
 
-  // 2. Register background message handler
-  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  // 1. Firebase
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    print('✅ Firebase initialized');
+  } catch (e) {
+    print('❌ Firebase error: $e');
+    runApp(ErrorApp(error: 'Firebase failed: $e'));
+    return;
+  }
 
-  // 3. Setup local notifications
-  await setupLocalNotifications();
+  // 2. Background handler
+  try {
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+    print('✅ Background handler registered');
+  } catch (e) {
+    print('❌ Background handler error: $e');
+  }
 
-  // 4. Setup FCM (Android + iOS)
-  await setupFCM();
+  // 3. Local notifications
+  try {
+    await setupLocalNotifications();
+    print('✅ Local notifications setup');
+  } catch (e) {
+    print('❌ Local notifications error: $e');
+  }
 
-  // 5. Initialize API Service
-  await ApiService.init();
+  // 4. FCM — wrapped so it never crashes app
+  try {
+    await setupFCM();
+    print('✅ FCM setup done');
+  } catch (e) {
+    print('❌ FCM error (non-fatal): $e');
+  }
 
-  // 6. Initialize cameras safely
+  // 5. API Service
+  try {
+    await ApiService.init();
+    print('✅ API Service initialized');
+  } catch (e) {
+    print('❌ API Service error: $e');
+  }
+
+  // 6. Cameras
   List<CameraDescription> cameras = [];
   try {
     cameras = await availableCameras();
-    print('📷 Cameras found: ${cameras.length}');
+    print('✅ Cameras found: ${cameras.length}');
   } catch (e) {
     print('❌ Camera init error: $e');
   }
 
-  // 7. Run app
+  // 7. Run actual app — replaces LoadingApp
   runApp(AttendanceApp(cameras: cameras));
 }
 
@@ -303,7 +407,6 @@ class SignalRService {
           )
           .build();
 
-      // Listen for attendance updates
       _hubConnection!.on('ReceiveAttendanceUpdate', (arguments) {
         if (arguments != null && arguments.isNotEmpty) {
           final data = arguments[0] as Map<String, dynamic>;
@@ -313,7 +416,6 @@ class SignalRService {
         }
       });
 
-      // Listen for real-time notifications
       _hubConnection!.on('ReceiveNotification', (arguments) {
         if (arguments != null && arguments.isNotEmpty) {
           final data = arguments[0] as Map<String, dynamic>;
@@ -936,8 +1038,8 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
           ResolutionPreset.medium,
           enableAudio: false,
           imageFormatGroup: Platform.isIOS
-              ? ImageFormatGroup.bgra8888  // iOS format
-              : ImageFormatGroup.nv21,     // Android format
+              ? ImageFormatGroup.bgra8888
+              : ImageFormatGroup.nv21,
         );
 
         await _cameraController!.initialize();
@@ -986,7 +1088,8 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
         _updateStatus('No face detected', Colors.red);
         _resetLivenessData();
       } else if (faces.length > 1) {
-        _updateStatus('Multiple faces detected. Show only one face.', Colors.orange);
+        _updateStatus(
+            'Multiple faces detected. Show only one face.', Colors.orange);
         _resetLivenessData();
       } else {
         await _performEnhancedLivenessChecks(faces.first, image);
@@ -998,7 +1101,8 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
     _isDetecting = false;
   }
 
-  Future<void> _performEnhancedLivenessChecks(Face face, CameraImage image) async {
+  Future<void> _performEnhancedLivenessChecks(
+      Face face, CameraImage image) async {
     final boundingBox = face.boundingBox;
     final previewSize = _cameraController!.value.previewSize!;
 
@@ -1013,13 +1117,15 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
     final scaleX = screenWidth / previewSize.height;
     final scaleY = screenHeight / previewSize.width;
 
-    final faceCenterX = boundingBox.left * scaleX + (boundingBox.width * scaleX) / 2;
-    final faceCenterY = boundingBox.top * scaleY + (boundingBox.height * scaleY) / 2;
+    final faceCenterX =
+        boundingBox.left * scaleX + (boundingBox.width * scaleX) / 2;
+    final faceCenterY =
+        boundingBox.top * scaleY + (boundingBox.height * scaleY) / 2;
     final faceWidth = boundingBox.width * scaleX;
     final faceHeight = boundingBox.height * scaleY;
 
-    final distanceFromCenter =
-        ((faceCenterX - circleCenterX).abs() + (faceCenterY - circleCenterY).abs());
+    final distanceFromCenter = ((faceCenterX - circleCenterX).abs() +
+        (faceCenterY - circleCenterY).abs());
     _distanceFromCenter = distanceFromCenter;
 
     if (distanceFromCenter > 100) {
@@ -1075,7 +1181,8 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
     }
 
     final imageWidth = previewSize.height;
-    final faceSize = (boundingBox.width * boundingBox.height) / (imageWidth * imageWidth);
+    final faceSize =
+        (boundingBox.width * boundingBox.height) / (imageWidth * imageWidth);
 
     _faceConfidences.add(faceSize);
     if (_faceConfidences.length > 8) _faceConfidences.removeAt(0);
@@ -1160,7 +1267,8 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
             _headTurnCount++;
             if (_headTurnCount >= 1) {
               _challengeCompleted = true;
-              _updateStatus('Head movement detected! Hold steady...', Colors.green);
+              _updateStatus(
+                  'Head movement detected! Hold steady...', Colors.green);
             }
           } else {
             _updateStatus('Slowly turn head left then right', Colors.yellow);
@@ -1214,7 +1322,6 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
         InputImageRotationValue.fromRawValue(camera.sensorOrientation) ??
             InputImageRotation.rotation0deg;
 
-    // iOS uses bgra8888, Android uses nv21
     final format = Platform.isIOS
         ? InputImageFormat.bgra8888
         : InputImageFormat.nv21;
@@ -1250,7 +1357,8 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
         desiredAccuracy: LocationAccuracy.high,
       );
 
-      print('📍 Location: ${_currentPosition!.latitude}, ${_currentPosition!.longitude}');
+      print(
+          '📍 Location: ${_currentPosition!.latitude}, ${_currentPosition!.longitude}');
     } catch (e) {
       print('❌ Location error: $e');
       _showError('Could not get location');
@@ -1404,10 +1512,8 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
       body: _isCameraInitialized
           ? Stack(
               children: [
-                // Camera Preview
                 Positioned.fill(child: CameraPreview(_cameraController!)),
 
-                // Face Guide Oval
                 Center(
                   child: Container(
                     width: 280,
@@ -1419,7 +1525,6 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
                   ),
                 ),
 
-                // Status Instructions
                 Positioned(
                   top: 40,
                   left: 0,
@@ -1482,7 +1587,6 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
                   ),
                 ),
 
-                // Security Indicators
                 Positioned(
                   top: 160,
                   left: 20,
@@ -1512,23 +1616,19 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
                         const SizedBox(height: 6),
                         _buildSecurityCheck(
                           'Position',
-                          _distanceFromCenter > 0 && _distanceFromCenter <= 100,
+                          _distanceFromCenter > 0 &&
+                              _distanceFromCenter <= 100,
                         ),
                         _buildSecurityCheck(
-                          'Motion',
-                          _faceConfidences.length >= 3,
-                        ),
+                            'Motion', _faceConfidences.length >= 3),
                         _buildSecurityCheck(
-                          'Lighting',
-                          _brightnessValues.length >= 5,
-                        ),
+                            'Lighting', _brightnessValues.length >= 5),
                         _buildSecurityCheck('Challenge', _challengeCompleted),
                       ],
                     ),
                   ),
                 ),
 
-                // Location Info
                 if (_currentPosition != null)
                   Positioned(
                     bottom: 80,
@@ -1559,7 +1659,6 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
                     ),
                   ),
 
-                // Processing Overlay
                 if (_isProcessing)
                   Container(
                     color: Colors.black.withOpacity(0.8),
@@ -1571,7 +1670,8 @@ class _AttendanceActionScreenState extends State<AttendanceActionScreen> {
                           SizedBox(height: 16),
                           Text(
                             'Processing attendance...',
-                            style: TextStyle(color: Colors.white, fontSize: 16),
+                            style:
+                                TextStyle(color: Colors.white, fontSize: 16),
                           ),
                         ],
                       ),
