@@ -41,13 +41,10 @@ import 'package:http/http.dart' as http;
 // CONFIGURATION - FOR ANDROID EMULATOR
 // ============================================
 const String API_BASE_URL =
-    // 'http://10.0.2.2:5238/api'; //emmulator ip
-    // 'http://103.104.192.247:1122/api/' live;
-    'http://103.104.192.247:1122/api/'; // Android Emulator localhost
-const String SIGNALR_URL = 'http://103.104.192.247:1122/attendanceHub';
-//     'http://10.178.2.142:5238/api'; // Android Emulator localhost
-// const String SIGNALR_URL = 'http://10.178.2.142:5238/attendanceHub';
-//     'http://localhost:5238/api'; // Android Emulator localhost
+  
+  
+const String SIGNALR_URL = 
+
 // const String SIGNALR_URL = 'http://localhost:5238/attendanceHub';
 
 // Use these for real device on same WiFi:
